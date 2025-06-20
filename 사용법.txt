@@ -1,0 +1,21 @@
+먼저 real-estate-analyzer 폴더로 터미널 포커스를 맞춥니다
+명령어 : cd real-estate-analyzer
+
+.env 파일을 생성하고 API 키를 등록합니다
+GOOGLE_API_KEY= 본인 GOOGLE_API_KEY
+
+가상환경 venv 를 설정 합니다
+명령어 : python -m venv venv
+
+가상환경을 실행합니다
+윈도우 명령어 : venv\Scripts\activate
+mac/linux 명령어 : source venv/bin/activate
+
+requirements.txt의 내용을 설치합니다.
+명령어 : pip install -r requirements.txt
+
+app.py(서버파일) 파일을 실행합니다
+명령어 : python app.py
+
+이후 터미널 창에 * Running on http://127.0.0.1:5000 이런식으로 뜨게 됩니다
+이후 웹브라우저로 http://127.0.0.1:5000 로 접속하시면 됩니다
