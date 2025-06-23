@@ -1,0 +1,17 @@
+# pip install -r requirements.txt 로 설치
+
+#Flask & Web Server
+Flask>=2.2
+Werkzeug==2.3.7
+python-dotenv==0.21.1
+
+#OCR & Image Processing
+easyocr==1.7.1
+opencv-python==4.9.0.80
+scikit-image==0.22.0
+numpy==1.26.4
+Pillow==10.3.0
+
+#AI Model
+google-generativeai==0.3.2
+
