@@ -154,6 +154,7 @@ def parse_summary_from_text(text):
         return match.group(1).strip() if match else None
 
     patterns = {
+
         "owner_name": r"현재 소유자:\s*(.*)",
         "has_mortgage": r"근저당권:\s*(.*)",
         "mortgage_amount": r"채권최고액:\s*([\d,]+)원",
@@ -163,6 +164,7 @@ def parse_summary_from_text(text):
         "lease_period": r"임대차 기간:\s*(.*)",
         "handover_date": r"명도일:\s*(\d{4}-\d{2}-\d{2})",
         "contract_addr": r"계약주소:\s*(.*)",
+        "register_addr": r"등기부등본 주소:\s*(.*)",
         "deposit": r"보증금:\s*([\d,]+)원",
         "monthly_rent": r"월세:\s*([\d,]+)원",
         "maintenance_fee": r"관리비:\s*([\d,]+)원",
@@ -293,6 +295,7 @@ def ocr_process():
         
         요약 형식:
         --- 등기부등본 요약 ---
+        - 등기부등본 주소: (도로명 또는 지번 주소)
         - 현재 소유자: OOO
         - 근저당권: [설정 있음 / 없음]
         - 채권최고액: XX,XXX,XXX원
@@ -382,6 +385,7 @@ def process_analysis():
     # 등기부등본 요약약
     print(f"✅ UID: {uid}")
     print(f"✅ 소유주 이름: {parsed_data.get('owner_name')}, 타입: {type(parsed_data.get('owner_name'))}")
+    print(f"✅ 등기부등본 주소: {parsed_data.get('register_addr')}, 타입: {type(parsed_data.get('register_addr'))}")
     print(f"✅ 근저당권 설정 여부: {parsed_data.get('has_mortgage')}, 타입: {type(parsed_data.get('has_mortgage'))}")
     print(f"✅ 채권최고액: {parsed_data.get('mortgage_amount')}, 타입: {type(parsed_data.get('mortgage_amount'))}")
     print(f"✅ 근저당권 말소 여부: {parsed_data.get('is_mortgage_cleared')}, 타입: {type(parsed_data.get('is_mortgage_cleared'))}")
