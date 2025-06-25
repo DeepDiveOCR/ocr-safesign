@@ -1,8 +1,0 @@
-# ================================================================
-# 🧠 PyTorch (EasyOCR의 핵심 엔진) - GPU (CUDA 12.6) 버전
-# 아래 --index-url을 통해 CUDA 버전에 맞는 PyTorch가 설치됩니다.
-# ================================================================
-
---index-url https://download.pytorch.org/whl/cu126
-torch
-torchvision
