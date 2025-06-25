@@ -382,7 +382,7 @@ def process_analysis():
     # ★★★ 요청하신 모든 변수의 개별 로그를 확인하는 부분 ★★★
     # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
     print("\n--- [종합 분석] 파싱된 모든 변수 개별 확인 시작 ---")
-    # 등기부등본 요약약
+    # 등기부등본 요약
     print(f"✅ UID: {uid}")
     print(f"✅ 소유주 이름: {parsed_data.get('owner_name')}, 타입: {type(parsed_data.get('owner_name'))}")
     print(f"✅ 등기부등본 주소: {parsed_data.get('register_addr')}, 타입: {type(parsed_data.get('register_addr'))}")

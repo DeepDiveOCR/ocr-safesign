@@ -120,6 +120,17 @@
                 </div>
 
                 <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 flex flex-col relative">
+                    <!-- ★★★[기능 추가] 분석 기록 섹션 ★★★ -->
+                    <div id="history-section" class="hidden mb-6">
+                        <h3 class="text-xl font-semibold mb-3 border-b pb-3 text-gray-800">나의 분석 기록</h3>
+                        <div id="history-list-container" class="overflow-auto" style="max-height: 12rem;">
+                            <!-- 분석 기록 아이템들이 여기에 동적으로 추가됩니다. -->
+                        </div>
+                        <div id="history-placeholder" class="text-center text-gray-500 py-8 hidden">
+                            <p>아직 분석 기록이 없습니다.</p>
+                        </div>
+                    </div>
+
                     <div id="analysis-view" class="flex flex-col flex-grow min-h-0">
                         <h2 class="text-2xl font-semibold mb-6 text-gray-800 flex-shrink-0">2. 종합 분석 리포트</h2>
                         
@@ -149,7 +160,7 @@
 
                             <div class="analysis-section">
                                 <div id="clauses-analysis-container">
-                                    </div>
+                                </div>
                             </div>
 
                         </div>
@@ -171,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
         apiKey: "AIzaSyDUHNNboNybvxgJyy9dPf797UlPaLzLFqk",
         authDomain: "safesign-c8e3d.firebaseapp.com",
         projectId: "safesign-c8e3d",
-        storageBucket: "safesign-c8e3d.appspot.com", // .firebasestorage.app 을 .appspot.com으로 수정
+        storageBucket: "safesign-c8e3d.appspot.com",
         messagingSenderId: "348853030550",
         appId: "1:348853030550:web:fa8f8f9f0311639f5afcb7"
         // measurementId는 필수가 아니므로 제거 가능
@@ -180,8 +191,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const auth = firebase.auth();
     const db = firebase.firestore();
     
-    // Kakao JavaScript 키 적용
-    Kakao.init('f62a9ee355ae5511b4ca7ec18e582fe3');
+    // Kakao JavaScript 키 적용 이 부분 본인 kakao js키로 변경해주세요
+    // .env 파일에 있는 KAKAO_JS_KEY 값 사용
+
+    Kakao.init(process.env.KAKAO_JS_KEY);
+    console.log('Kakao SDK initialized:', Kakao.isInitialized());
+    console.log(process.env.KAKAO_JS_KEY);
 
     const loginBtn = document.getElementById('login-btn');
     const kakaoLoginBtn = document.getElementById('kakao-login-btn');
@@ -191,18 +206,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginOverlay = document.getElementById('login-overlay');
     const mainContent = document.getElementById('main-content');
     
-    let currentUser = null; // 현재 로그인한 사용자 정보
+    let currentUser = null; 
+
+    // ★★★[기능 추가] 분석 기록 관련 UI 요소
+    const historySection = document.getElementById('history-section');
+    const historyListContainer = document.getElementById('history-list-container');
+    const historyPlaceholder = document.getElementById('history-placeholder');
 
     // Element References (기존 코드)
     const registerUpload = document.getElementById('register-upload'), contractUpload = document.getElementById('contract-upload'), registerPlaceholder = document.getElementById('register-placeholder'), contractPlaceholder = document.getElementById('contract-placeholder'), registerPreview = document.getElementById('register-preview'), contractPreview = document.getElementById('contract-preview'), registerDeleteBtn = document.getElementById('register-delete-btn'), contractDeleteBtn = document.getElementById('contract-delete-btn'), ocrResults = document.getElementById('ocr-results'), actionBtn = document.getElementById('action-btn'), actionBtnText = document.getElementById('action-btn-text'), actionSpinner = document.getElementById('action-spinner'), analysisView = document.getElementById('analysis-view'), analysisPlaceholder = document.getElementById('analysis-placeholder'), placeholderText = document.getElementById('placeholder-text'), analysisResultView = document.getElementById('analysis-result-view'), sideImageViewer = document.getElementById('side-image-viewer'), sideViewerImage = document.getElementById('side-viewer-image'), sideViewerCloseBtn = document.getElementById('side-viewer-close-btn');
     
-    // State Management (기존 코드)
     let appState = 'initial', registerFile = null, contractFile = null;
-
-    // ★★★[구조 변경] 특약사항 원본 텍스트를 저장할 변수 (기존 코드)
     let originalClausesText = "";
+    
+    // ★★★[기능 추가] 불러온 분석 기록 데이터를 임시 저장하는 맵
+    let historyDataMap = new Map();
 
-    // ★★★[추가] Firebase 인증 상태 리스너 ★★★
+    // ★★★[수정] Firebase 인증 상태 리스너 ★★★
     auth.onAuthStateChanged(user => {
         if (user) {
             // 사용자가 로그인한 경우
@@ -212,10 +232,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 email: user.email
             };
             updateAuthUI(true);
+            fetchAndDisplayHistory(user.uid); // 로그인 시 기록 불러오기
         } else {
             // 사용자가 로그아웃한 경우
             currentUser = null;
             updateAuthUI(false);
+            historySection.classList.add('hidden'); // 로그아웃 시 기록 숨기기
         }
     });
 
@@ -304,6 +326,68 @@ document.addEventListener('DOMContentLoaded', () => {
         updateUI();
     }
     
+    // ★★★[기능 추가] Firestore에서 분석 기록 가져와서 표시하는 함수 ★★★
+    async function fetchAndDisplayHistory(uid) {
+        historyDataMap.clear();
+        historyListContainer.innerHTML = '';
+        historyPlaceholder.classList.add('hidden');
+
+        try {
+            const querySnapshot = await db.collection('users').doc(uid).collection('analyses')
+                .orderBy('createdAt', 'desc')
+                .get();
+
+            if (querySnapshot.empty) {
+                historyPlaceholder.classList.remove('hidden');
+            } else {
+                querySnapshot.forEach(doc => {
+                    const data = doc.data();
+                    const docId = doc.id;
+                    historyDataMap.set(docId, data); // 맵에 데이터 저장
+
+                    const item = document.createElement('div');
+                    item.className = 'history-item p-3 mb-2 border rounded-lg cursor-pointer hover:bg-gray-100 transition';
+                    item.dataset.id = docId;
+
+                    const address = data.userInput?.contract_addr || '주소 정보 없음';
+                    const date = data.createdAt ? data.createdAt.toDate().toLocaleDateString('ko-KR') : '날짜 정보 없음';
+
+                    item.innerHTML = `
+                        <p class="font-semibold text-gray-800 truncate">${address}</p>
+                        <p class="text-sm text-gray-500">${date}</p>
+                    `;
+                    historyListContainer.appendChild(item);
+                });
+            }
+            historySection.classList.remove('hidden');
+        } catch (error) {
+            console.error("분석 기록 로딩 실패:", error);
+            historyPlaceholder.textContent = '기록을 불러오는 중 오류가 발생했습니다.';
+            historyPlaceholder.classList.remove('hidden');
+            historySection.classList.remove('hidden');
+        }
+    }
+
+    // ★★★[기능 추가] 분석 기록 클릭 이벤트 리스너 (이벤트 위임) ★★★
+    historyListContainer.addEventListener('click', (e) => {
+        const historyItem = e.target.closest('.history-item');
+        if (historyItem) {
+            const docId = historyItem.dataset.id;
+            const data = historyDataMap.get(docId);
+
+            if (data) {
+                ocrResults.value = data.summaryText || '';
+                originalClausesText = data.clausesText || '';
+                displayAnalysisResults(data.analysisReport);
+                appState = 'analysis_done';
+                updateUI();
+                
+                // 스크롤을 결과 뷰로 이동
+                document.getElementById('analysis-view').scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    });
+
     // ★★★[추가] 버튼 이벤트 리스너 연결 ★★★
     loginBtn.addEventListener('click', () => loginOverlay.classList.remove('hidden'));
     kakaoLoginBtn.addEventListener('click', signInWithKakao);
@@ -359,7 +443,6 @@ document.addEventListener('DOMContentLoaded', () => {
         input.addEventListener('change',e=>{if(e.target.files&&e.target.files[0])handleFile(e.target.files[0])});
         deleteBtn.addEventListener('click',e=>{e.stopPropagation();input.value='';isRegister?registerFile=null:contractFile=null;displayPreview(null,preview,placeholder,deleteBtn);checkFilesAndUpdateState();hideSideImageViewer()});
     };
-
     setupUploadListener(document.getElementById('drop-zone-register'), registerUpload, registerPlaceholder, registerPreview, registerDeleteBtn, true);
     setupUploadListener(document.getElementById('drop-zone-contract'), contractUpload, contractPlaceholder, contractPreview, contractDeleteBtn, false);
     document.getElementById('edit-btn').addEventListener('click', () => { ocrResults.focus(); ocrResults.select(); });
@@ -438,6 +521,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // ★★★[기능 추가] 서버로부터 받은 종합 분석 결과를 화면에 표시 (기존 코드)
                     displayAnalysisResults(result);
                     appState = 'analysis_done';
+                    fetchAndDisplayHistory(currentUser.uid); // 분석 완료 후 목록 새로고침
                 }
             })
             .catch(error => {
