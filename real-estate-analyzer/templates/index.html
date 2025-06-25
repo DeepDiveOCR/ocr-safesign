@@ -192,11 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const db = firebase.firestore();
     
     // Kakao JavaScript 키 적용 이 부분 본인 kakao js키로 변경해주세요
-    // .env 파일에 있는 KAKAO_JS_KEY 값 사용
-
-    Kakao.init(process.env.KAKAO_JS_KEY);
-    console.log('Kakao SDK initialized:', Kakao.isInitialized());
-    console.log(process.env.KAKAO_JS_KEY);
+    Kakao.init('f62a9ee355ae5511b4ca7ec18e582fe3');
 
     const loginBtn = document.getElementById('login-btn');
     const kakaoLoginBtn = document.getElementById('kakao-login-btn');
