@@ -1,0 +1,28 @@
+# pip install -r requirements.txt 로 설치
+
+#Flask & Web Server
+Flask==2.3.3
+Werkzeug==2.3.7
+python-dotenv==0.21.1
+firebase-admin==6.1.0
+requests
+
+#OCR & Image Processing
+easyocr==1.7.1
+opencv-python==4.9.0.80
+scikit-image==0.22.0
+numpy==1.26.4
+Pillow==10.3.0
+
+#AI Model
+google-generativeai==0.3.2
+
+# ================================================================
+# 🧠 PyTorch (EasyOCR의 핵심 엔진) - GPU (CUDA 12.6) 버전
+# 아래 --extra-index-url을 통해 CUDA 버전에 맞는 PyTorch가 설치됩니다.
+# ================================================================
+
+--extra-index-url https://download.pytorch.org/whl/cu126
+torch
+torchvision
+torchaudio
