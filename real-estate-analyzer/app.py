@@ -154,7 +154,6 @@ def parse_summary_from_text(text):
         return match.group(1).strip() if match else None
 
     patterns = {
-
         "owner_name": r"현재 소유자:\s*(.*)",
         "has_mortgage": r"근저당권:\s*(.*)",
         "mortgage_amount": r"채권최고액:\s*([\d,]+)원",
@@ -171,7 +170,8 @@ def parse_summary_from_text(text):
         "included_fees": r"관리비 포함항목:\s*\[(.*)\]",
         "lessor_name": r"임대인:\s*(?!계좌정보)(.*)",
         "lessee_name": r"임차인:\s*(.*)",
-        "lessor_account": r"임대인 계좌정보:\s*(.*)"
+        "lessor_account": r"임대인 계좌정보:\s*(.*)",
+        "lessee_account": r"임차인 계좌정보:\s*(.*)"
     }
 
     for key, pattern in patterns.items():
@@ -292,15 +292,16 @@ def ocr_process():
         prompt = f"""
         당신은 대한민국 부동산 임대차 계약서와 등기부등본을 분석해 **요약 정보**와 **특약사항**을 구분하여 제공하는 AI 전문가입니다.
         아래 OCR 텍스트를 바탕으로, 지정된 형식에 맞춰 **요약 정보**와 **특약사항**을 정확히 추출해주세요.
+        괄호로 인식이 미비한 부분을 표시하지마세요.
         
         요약 형식:
         --- 등기부등본 요약 ---
-        - 등기부등본 주소: (도로명 또는 지번 주소)
+        - 소재지번 또는 건물번호: (도로명 또는 지번 주소)
         - 현재 소유자: OOO
+        - 현재 소유자 주민등록번호: 주민등록번호
         - 근저당권: [설정 있음 / 없음]
         - 채권최고액: XX,XXX,XXX원
         - 말소 여부: [말소됨 / 유지]
-        - 기타 등기사항: (간략 요약)
 
         --- 계약서 요약 ---
         계약 기본정보
@@ -316,10 +317,18 @@ def ocr_process():
         - 관리비 포함항목: [인터넷, 전기, 수도 등]
 
         임차인/임대인 정보
-        - 임대인: 성명 
-        - 임차인: 성명 
+        - 임대인: 성명
+        - 임대인 주소: (도로명 또는 지번 주소)
+        - 임대인 주민등록번호: 주민등록번호
+        - 임대인 전화번호: 전화번호
         - 임대인 계좌정보: 은행명 / 계좌번호
-        - 비상 연락처: 성명 / 전화번호
+        - 임차인: 성명 
+        - 임차인 주민등록번호: 주민등록번호
+        - 임차인 전화번호: 전화번호
+        - 임차인 주소: (도로명 또는 지번 주소)
+        - 비상 연락처: 성명
+        - 비상 전화번호: 전화번호
+        - 관계: (임대인과 임차인의 관계, 예: 가족, 친구 등)
 
         특약사항
         - (모든 특약 조항을 그대로 나열, 없으면 '특약사항 없음'으로 표기)
@@ -490,8 +499,8 @@ def process_analysis():
     try:
         analysis_data_to_save = {
             'summaryText': summary_text,      # 사용자가 확인/수정한 요약 원본 텍스트
-            # 'clausesText': clauses_text,      # 사용자가 확인/수정한 특약사항 원본 텍스트 후처리가 필요할것같아서 임시 보류류
-            'analysisReport': final_result['verifications']['clauses'],   # AI가 생성한 최종 보고서만 입력력
+            # 'clausesText': clauses_text,      # 사용자가 확인/수정한 특약사항 원본 텍스트 후처리가 필요할것같아서 임시 보류
+            'analysisReport': final_result['verifications']['clauses'],   # AI가 생성한 최종 보고서만 입력
             'createdAt': firestore.SERVER_TIMESTAMP # 분석 시간
         }
         # users/{uid}/analyses 컬렉션에 새로운 문서 추가
