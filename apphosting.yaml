@@ -1,0 +1,5 @@
+build:
+  image: .
+run:
+  backendId: safesign-backend
+  region: asia-east1
