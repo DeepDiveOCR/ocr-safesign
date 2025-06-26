@@ -447,11 +447,10 @@ def process_analysis():
     # ★★★[기능 추가] 분석 결과를 Firestore에 저장 ★★★
     try:
         analysis_data_to_save = {
-            'userInput': parsed_data,
-            'summaryText': summary_text,
-            'clausesText': clauses_text,
-            'analysisReport': final_result,
-            'createdAt': firestore.SERVER_TIMESTAMP
+            'summaryText': summary_text,      # 사용자가 확인/수정한 요약 원본 텍스트
+            # 'clausesText': clauses_text,      # 사용자가 확인/수정한 특약사항 원본 텍스트 후처리가 필요할것같아서 임시 보류
+            'analysisReport': final_result['verifications']['clauses'],   # AI가 생성한 최종 보고서만 입력
+            'createdAt': firestore.SERVER_TIMESTAMP # 분석 시간
         }
         db.collection('users').document(uid).collection('analyses').add(analysis_data_to_save)
         print(f"✅ Firestore에 분석 결과 저장 성공 (UID: {uid})")
