@@ -1,0 +1,13 @@
+{
+  "hosting": {
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "ocr-safesign",
+          "region": "asia-east1"
+        }
+      }
+    ]
+  }
+}
