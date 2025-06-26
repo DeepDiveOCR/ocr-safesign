@@ -5,7 +5,7 @@ FROM python:3.11-slim
 # 2. 시스템 패키지 업데이트 및 필수 라이브러리 설치
 #    - apt-get update: 패키지 목록을 최신으로 업데이트합니다.
 #    - libgl1-mesa-glx: OpenCV가 GUI 없는 환경에서 이미지를 처리할 때 필요한 라이브러리입니다.
-#    - --no-install-recommends: 불필요한 추천 패키지는 설치하지 않아 이미지 용량을 줄입니다.
+#    - --no-install-recommends: 불필요한 추천 패키지는 설치하지 않아 이미지 용량을 줄입니다..
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-glx \
     && rm -rf /var/lib/apt/lists/*
