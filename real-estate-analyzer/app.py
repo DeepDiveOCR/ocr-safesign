@@ -16,10 +16,10 @@ from rule.rules import (
     check_owner_match,
     check_mortgage_risk,
     check_deposit_over_market,
-    check_mortgage_vs_deposit
+    check_mortgage_vs_deposit,
+    compare_address,
+    determine_overall_risk,
 )
-
-
 
 
 # ======================================================================
@@ -29,6 +29,7 @@ from rule.rules import (
 # .env 파일에서 환경 변수를 로드합니다.
 # 이 함수는 app.py와 같은 위치에 있는 .env 파일을 찾아서 그 안의 값들을 환경 변수로 설정합니다.
 load_dotenv() 
+confm_key = os.getenv("CONFIRM_KEY") #주소 검색용 공공 API 인증키
 
 app = Flask(__name__)
 # 세션 쿠키는 이제 사용하지 않으므로 secret_key가 필수적이지 않지만, 다른 확장을 위해 유지합니다.
@@ -160,6 +161,7 @@ def parse_summary_from_text(text):
         "lease_period": r"임대차 기간:\s*(.*)",
         "handover_date": r"명도일:\s*(\d{4}-\d{2}-\d{2})",
         "contract_addr": r"계약주소:\s*(.*)",
+        "register_addr": r"등기부등본 주소:\s*(.*)",
         "deposit": r"보증금:\s*([\d,]+)원",
         "monthly_rent": r"월세:\s*([\d,]+)원",
         "maintenance_fee": r"관리비:\s*([\d,]+)원",
@@ -242,6 +244,7 @@ def ocr_process():
         
         요약 형식:
         --- 등기부등본 요약 ---
+        - 등기부등본 주소: (도로명 또는 지번 주소)
         - 현재 소유자: OOO
         - 근저당권: [설정 있음 / 없음]
         - 채권최고액: XX,XXX,XXX원
@@ -312,6 +315,7 @@ def ocr_process():
 # ★★★ [구조 변경] 모든 분석을 처리하는 새로운 단일 종합 엔드포인트 ★★★
 # ======================================================================
 @app.route('/process-analysis', methods=['POST'])
+
 def process_analysis():
     data = request.get_json()
     summary_text = data.get('summary_text')
@@ -322,47 +326,12 @@ def process_analysis():
 
     # 1. 백엔드에서 텍스트 파싱
     parsed_data = parse_summary_from_text(summary_text)
-    
-    # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-    # ★★★ 요청하신 모든 변수의 개별 로그를 확인하는 부분 ★★★
-    # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-    print("\n--- [종합 분석] 파싱된 모든 변수 개별 확인 시작 ---")
-    
-    # 등기부등본 요약
-    print(f"✅ 소유주 이름: {parsed_data.get('owner_name')}, 타입: {type(parsed_data.get('owner_name'))}")
-    print(f"✅ 근저당권 설정 여부: {parsed_data.get('has_mortgage')}, 타입: {type(parsed_data.get('has_mortgage'))}")
-    print(f"✅ 채권최고액: {parsed_data.get('mortgage_amount')}, 타입: {type(parsed_data.get('mortgage_amount'))}")
-    print(f"✅ 근저당권 말소 여부: {parsed_data.get('is_mortgage_cleared')}, 타입: {type(parsed_data.get('is_mortgage_cleared'))}")
-    print(f"✅ 기타 등기사항: {parsed_data.get('other_register_info')}, 타입: {type(parsed_data.get('other_register_info'))}")
-    
-    print("---")
-    
-    # 계약 기본 정보
-    print(f"✅ 계약일: {parsed_data.get('contract_date')}, 타입: {type(parsed_data.get('contract_date'))}")
-    print(f"✅ 임대차 기간: {parsed_data.get('lease_period')}, 타입: {type(parsed_data.get('lease_period'))}")
-    print(f"✅ 명도일: {parsed_data.get('handover_date')}, 타입: {type(parsed_data.get('handover_date'))}")
-    print(f"✅ 계약주소: {parsed_data.get('contract_addr')}, 타입: {type(parsed_data.get('contract_addr'))}")
-
-    print("---")
-
-    # 금전 조건
-    print(f"✅ 보증금: {parsed_data.get('deposit')}, 타입: {type(parsed_data.get('deposit'))}")
-    print(f"✅ 월세: {parsed_data.get('monthly_rent')}, 타입: {type(parsed_data.get('monthly_rent'))}")
-    print(f"✅ 관리비: {parsed_data.get('maintenance_fee')}, 타입: {type(parsed_data.get('maintenance_fee'))}")
-    print(f"✅ 관리비 포함항목: {parsed_data.get('included_fees')}, 타입: {type(parsed_data.get('included_fees'))}")
-
-    print("---")
-
-    # 인적 정보
-    print(f"✅ 임대인 이름: {parsed_data.get('lessor_name')}, 타입: {type(parsed_data.get('lessor_name'))}")
-    print(f"✅ 임차인 이름: {parsed_data.get('lessee_name')}, 타입: {type(parsed_data.get('lessee_name'))}")
-    print(f"✅ 임대인 계좌정보: {parsed_data.get('lessor_account')}, 타입: {type(parsed_data.get('lessor_account'))}")
-
-    print("--- [종합 분석] 변수 개별 확인 종료 ---\n")
-
-    # ★★★[추가]위험 판단 로직 실행 (rule.rules 모듈 내 함수 기반으로 각 리스크 항목 평가) 
-    
+ 
+ # ======================================================================
+ # ★★★[추가]위험 판단 로직 실행 (rule.rules 모듈 내 함수 기반으로 각 리스크 항목 평가) 
+ # ======================================================================
     logic_results = {}
+    overall_grade = "판단불가"  # ← 초기값 지정
 
     try:
         owner_name = parsed_data.get("owner_name")
@@ -372,6 +341,8 @@ def process_analysis():
         has_mortgage = parsed_data.get("has_mortgage")
         is_mortgage_cleared = parsed_data.get("is_mortgage_cleared")
         mortgage_amount = parsed_data.get("mortgage_amount")
+        register_addr = parsed_data.get("register_addr")
+        contract_addr = parsed_data.get("contract_addr")
         
         if owner_name and lessor_name:
             logic_results['임대인-소유주 일치'] = check_owner_match(owner_name, lessor_name)
@@ -385,9 +356,38 @@ def process_analysis():
         if deposit and mortgage_amount:
             logic_results['보증금 대비 채권최고액 위험'] = check_mortgage_vs_deposit(deposit, market_price, mortgage_amount)
 
+        if register_addr and contract_addr:
+            logic_results['주소 일치 여부'] = compare_address(register_addr, contract_addr, confm_key)
+
+         # 종합 위험 등급 계산
+        grades = [res["grade"] for res in logic_results.values() if res.get("grade") in ["위험", "주의", "안전"]]
+        overall_result = determine_overall_risk(grades)
+
+
+        # 결과 포맷 정리
+        details = []
+        for item in logic_results.values():
+            if item.get("grade"):
+                details.append({
+                    "type": item.get("type", "기타"),
+                    "grade":item["grade"],
+                    "message": item["message"]
+                })
+        final_result = {
+            "overall_grade": overall_result["overall_grade"],
+            "avg_score": round(overall_result["avg_score"],1) if overall_result["avg_score"] else None,
+            "risk_count" : overall_result["risk_count"],
+            "caution_count": overall_result["caution_count"],
+            "details": details
+        }
+        
+        return jsonify(final_result)
+
     except Exception as e:
         print(f"위험 판단 로직 처리 중 오류: {e}")
-        logic_results['error'] = '위험 판단 로직 중 오류 발생'
+        logic_results["error"] = f"위험 판단 로직 오류: {str(e)}"
+        overall_grade = "판단불가"
+
 
 
 
@@ -451,6 +451,7 @@ def process_analysis():
     # - clauses_analysis: 특약사항 분석 결과 (LLM 또는 규칙 기반 처리)
     final_result = {
         "logic_results": logic_results,
+        "overall_grade": overall_grade,
         "clauses_analysis": clauses_analysis_result
         }
     return jsonify(final_result)
@@ -464,4 +465,5 @@ if __name__ == '__main__':
     # host='0.0.0.0'는 외부에서 접속 가능하게 함
     # debug=True는 개발 중에만 사용하고, 실제 배포 시에는 False로 변경하거나 제거합니다.
     app.run(host='0.0.0.0', port=5000, debug=True)
+    
 
