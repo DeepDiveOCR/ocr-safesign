@@ -1,5 +1,3 @@
-# .dockerignore
-
 # Python 가상환경
 venv/
 .venv/
@@ -13,8 +11,6 @@ venv/
 .vscode/
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
 
 # 로컬 환경 설정 파일
 .env
