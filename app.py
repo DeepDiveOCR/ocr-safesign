@@ -21,7 +21,7 @@ from firebase_admin import credentials, auth, firestore # ★★★[수정] fire
 load_dotenv() 
 
 app = Flask(__name__)
-# 세션 쿠키는 이제 사용하지 않으므로 secret_key가 필수적이지 않지만, 다른 확장을 위해 유지합니다.
+# 세션 쿠키는 이제 사용하지 않으므로 secret_key가 필수적이지 않지만, 다른 확장을 위해 유지합니다..
 app.secret_key = 'safesign_robust' 
 
 if not os.path.exists('uploads'):
