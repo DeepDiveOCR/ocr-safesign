@@ -1,13 +1,16 @@
 {
-  "apphosting": {
-    "backend": {
-      "build": {
-        "image": "."
-      },
-      "run": {
-        "backendId": "ocr-safesign",
-        "region": "asia-east1"
+  "apphosting": [
+    {
+      "target": "default",
+      "backend": {
+        "build": {
+          "image": "."
+        },
+        "run": {
+          "backendId": "ocr-safesign",
+          "region": "asia-east1"
+        }
       }
     }
-  }
+  ]
 }
