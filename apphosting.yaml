@@ -1,5 +1,22 @@
+# Dockerfile을 사용하도록 명시적으로 지정
 build:
   image: .
-run:
-  backendId: safesign-backend
-  region: asia-east1
+
+# 백엔드 실행 환경 설정 (Cloud Run)
+# https://firebase.google.com/docs/app-hosting/configure#cloud-run
+runConfig:
+  minInstances: 0
+  # maxInstances: 100
+  # concurrency: 80
+  # cpu: 1
+  # memoryMiB: 512
+
+# 환경 변수 및 비밀 설정
+# https://firebase.google.com/docs/app-hosting/configure#secret-parameters
+env:
+  # GOOGLE_API_KEY라는 이름의 환경 변수에 'GOOGLE_API_KEY'라는 이름의 비밀을 연결
+  - variable: GOOGLE_API_KEY
+    secret: GOOGLE_API_KEY
+  # KAKAO_REST_API_KEY라는 이름의 환경 변수에 'KAKAO_REST_API_KEY'라는 이름의 비밀을 연결
+  - variable: KAKAO_REST_API_KEY
+    secret: KAKAO_REST_API_KEY
