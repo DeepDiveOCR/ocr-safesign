@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -177,12 +178,17 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // ★★★[배포용 수정] Firebase Hosting 자동 초기화 ★★★
-    // 아래 코드는 Firebase App Hosting에 배포될 때,
-    // 자동으로 현재 환경에 맞는 설정을 주입해줍니다.
-    // 따라서 API 키를 코드에 직접 노출할 필요가 없습니다.
-    firebase.initializeApp();
-
+    // ★★★[추가] Firebase & Auth UI Elements ★★★
+    const firebaseConfig = {
+        apiKey: "AIzaSyDshiVgNA04Cuhy4U0Mb16gxsHwUp_BKcM",
+        authDomain: "safesign-5dd44.firebaseapp.com",
+        projectId: "safesign-5dd44",
+        storageBucket: "safesign-5dd44.firebasestorage.app",
+        messagingSenderId: "221489615514",
+        appId: "1:221489615514:web:981d7b423426dce93b8523",
+        // measurementId: "G-NB9JVG2MNC"
+    };
+    firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     const db = firebase.firestore();
     
@@ -530,6 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function displayAnalysisResults(result) {
         const identityCell = document.getElementById('verification-identity');
         const priceCell = document.getElementById('verification-price');
+
         identityCell.textContent = result.verifications.identity || '확인 불가';
         priceCell.textContent = result.verifications.price || '확인 불가';
         
@@ -539,6 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (identityCell.textContent.includes('일치')) {
             identityCell.classList.add('verification-safe');
         }
+
         priceCell.className = 'verification-value';
         if (priceCell.textContent.includes('주의') || priceCell.textContent.includes('높습니다')) {
             priceCell.classList.add('verification-warn');
