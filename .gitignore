@@ -21,7 +21,7 @@ __pycache__/
 # VS Code 등 편집기 설정 관련 폴더입니다.
 .vscode/
 
-# OS generated files
+# OS generated files.
 # 운영체제에서 자동으로 생성하는 파일입니다. (macOS, Windows)
 .DS_Store
 Thumbs.db
