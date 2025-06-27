@@ -7,6 +7,7 @@ python-dotenv==0.21.1
 firebase-admin==6.1.0
 requests
 gunicorn
+pandas
 
 #OCR & Image Processing
 easyocr==1.7.1
