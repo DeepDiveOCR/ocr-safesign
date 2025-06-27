@@ -466,7 +466,7 @@ def process_analysis():
             "details": details
         }
         
-        return jsonify(final_result)
+        
 
     except Exception as e:
         print(f"위험 판단 로직 처리 중 오류: {e}")
