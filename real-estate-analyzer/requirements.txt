@@ -18,6 +18,10 @@ Pillow==10.3.0
 #AI Model
 google-generativeai==0.3.2
 
+# Data Analysis (시세계산용)
+pandas
+scikit-learn
+
 # ================================================================
 # 🧠 PyTorch (EasyOCR의 핵심 엔진) - CPU 버전
 # GPU 관련(--extra-index-url) 옵션을 주석 처리하여,
