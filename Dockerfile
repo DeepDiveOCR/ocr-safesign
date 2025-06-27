@@ -22,4 +22,6 @@ COPY . .
 
 # 7. 실행 명령어: 안정적인 운영을 위해 JSON 배열 형식으로 수정합니다.
 #    - "0.0.0.0"은 컨테이너 외부의 모든 트래픽을 허용하는 표준 설정입니다.
-CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "--workers", "1", "--threads", "8", "--timeout", "0", "app:app"]
+ENTRYPOINT ["sh", "-c"]
+CMD ["gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 0 app:app"]
+
