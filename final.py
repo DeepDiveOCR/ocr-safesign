@@ -66,28 +66,32 @@ def get_trade_api_url(building_type):
     return None
 
 # ✅ 실거래가 API 호출
-def get_trade_deals(lawd_cd, target_dong, target_jibun, months, building_type):
+def get_trade_deals(lawd_cd, target_dong, target_jibun, building_type, yyyymm):
     url = get_trade_api_url(building_type)
-    today = datetime.today()
-    month_list = [(today - timedelta(days=30 * i)).strftime("%Y%m") for i in range(months)]
     all_data = []
+    page = 1
 
-    for yyyymm in month_list:
+    while True:
         params = {
             "serviceKey": "7vMdnzTpnFnBO5wPN3LkHyPgPNFu3A/w/+RH8EJw3ihZfuhA5UiMx4x/PYl1qjlCx1VAzTL+i2GJXf1c/oHfyg==",
             "LAWD_CD": lawd_cd,
             "DEAL_YMD": yyyymm,
             "numOfRows": "1000",
-            "pageNo": "1"
+            "pageNo": str(page)
         }
+
         try:
             response = requests.get(url, params=params)
             root = ET.fromstring(response.content)
 
-            for item in root.iter("item"):
+            items = list(root.iter("item"))
+            if not items:
+                break  # 더 이상 데이터 없음
+
+            for item in items:
                 dong = item.findtext("umdNm", "").strip()
                 api_jibun = item.findtext("jibun", "").strip()
-                
+
                 if dong != target_dong or api_jibun != target_jibun:
                     continue
 
@@ -108,81 +112,14 @@ def get_trade_deals(lawd_cd, target_dong, target_jibun, months, building_type):
                     "전용면적": area,
                     "계약일": date
                 })
+
+            page += 1
+
         except Exception as e:
-            print(f"❌ API 오류: {e}")
-            continue
+            print(f"❌ API 오류 (page {page}): {e}")
+            break
 
     return pd.DataFrame(all_data)
-
-# ✅ 통합 시세 추정 함수
-def estimate_real_estate_price(lawd_cd, target_dong, target_jibun, building_type, fallback_callback=None):
-    def fetch_and_estimate(months, label):
-        df = get_trade_deals(lawd_cd, target_dong, target_jibun, months, building_type)
-        if len(df) >= 5:
-            df["㎡당가격"] = df["거래금액"] / df["전용면적"]
-            median = df["㎡당가격"].median()
-            print(f"✅ {label} 데이터를 기반으로 시세를 계산하였습니다.")
-            return round(median), label
-        return None, None
-
-    # 1️⃣ 최근 1년
-    price, 기준 = fetch_and_estimate(12, "1년 기준")
-    if price is not None:
-        return price, 기준
-
-    # 2️⃣ 최근 2년
-    price, 기준 = fetch_and_estimate(24, "2년 기준")
-    if price is not None:
-        print("⚠️ 최근 거래가 부족하여 최근 2년간 데이터를 활용하였습니다.")
-        return price, 기준
-
-    # 3️⃣ 대체 전략 (인근 단지 등)
-    if fallback_callback:
-        price = fallback_callback()
-        print("⚠️ 2년간 데이터도 부족하여 인근 단지 기반으로 시세를 추정합니다.")
-        return round(price), "인근 단지"
-
-    print("❌ 시세를 추정할 수 없습니다.")
-    return None, "데이터 부족"
-
-
-### fallback
-def load_coords_by_building_type(building_type):
-    file_mapping = {
-        "오피스텔": "df_office.csv",
-        "아파트" : "df_apartment.csv",
-        "다세대": "df_villa.csv"
-    }
-    filepath = file_mapping.get(building_type)
-    return pd.read_csv(filepath)
-
-def get_coords(address):
-    kakao_api_key = "6665946ef83bd1dc889184a24cf212a2"
-    url = "https://dapi.kakao.com/v2/local/search/address.json"
-    headers = {"Authorization": f"KakaoAK {kakao_api_key}"}
-    params = {"query": address}
-
-    response = requests.get(url, headers=headers, params=params)
-    if response.status_code == 200:
-        result = response.json()
-        if result['documents']:
-            x = float(result['documents'][0]['x'])  # longitude
-            y = float(result['documents'][0]['y'])  # latitude
-            return y, x
-        else:
-            print("❌ 주소에 대한 좌표를 찾을 수 없습니다.")
-            return None, None
-    else:
-        print(f"❌ API 오류: {response.status_code}")
-        return None, None
-    
-def haversine(lat1, lon1, lat2, lon2):
-    R = 6371.0  # 지구 반지름(km)
-    dlat = radians(lat2 - lat1)
-    dlon = radians(lon2 - lon1)
-    a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
-    c = 2 * atan2(sqrt(a), sqrt(1 - a))
-    return R * c
 
 def weighted_median(values, weights):
     sorted_idx = np.argsort(values)
@@ -192,53 +129,69 @@ def weighted_median(values, weights):
     cutoff = 0.5 * sum(sorted_weights)
     return sorted_values[cumulative_weight >= cutoff][0]
 
-def fallback_strategy(address, lawd_cd, df_coords, building_type, months=24):
-    # 1️⃣ 주소 → 위도, 경도
-    lat, lon = get_coords(address)
+# ✅ 통합 시세 추정 함수
+def estimate_real_estate_price(lawd_cd, target_dong, target_jibun, target_area, building_type):
+    all_df = pd.DataFrame()
+    today = datetime.today()
 
-    # 2️⃣ 거리 계산
-    df_coords["거리_km"] = df_coords.apply(
-        lambda row: haversine(lat, lon, row["위도"], row["경도"]),
-        axis=1
-    )
+    for year_offset in range(0, 5):
+        # 이 루프에서 가져올 1년치 기간의 yyyymm 리스트
+        month_list = [
+            (today - timedelta(days=30 * (year_offset * 12 + i))).strftime("%Y%m") 
+            for i in range(12)
+        ]
+        
+        # 해당 연도의 12개월 데이터 요청
+        for yyyymm in month_list:
+            new_df = get_trade_deals(lawd_cd, target_dong, target_jibun, building_type, yyyymm=yyyymm)
+            
+            if not new_df.empty:
+                all_df = pd.concat([all_df, new_df], ignore_index=True).drop_duplicates()
 
-    # 3️⃣ 인접 단지 1km 이내 상위 10개 선택
-    nearby_df = df_coords[df_coords["거리_km"] <= 1].sort_values(by="거리_km").head(10)
-    deal_list = []
+        if len(all_df) >= 5:
+            filtered_df = all_df[
+                (all_df["전용면적"] >= target_area - 3) & 
+                (all_df["전용면적"] <= target_area + 3)
+            ]
+            target_df = (filtered_df if len(filtered_df) >= 3 else all_df).copy()
 
-    for _, row in nearby_df.iterrows():
-        full_address = row["전체주소"]
-        _, dong, jibun = parse_address(full_address)
+            target_df["㎡당가격"] = target_df["거래금액"] / target_df["전용면적"]
+            target_df["계약일"] = pd.to_datetime(target_df["계약일"])
+            target_df["개월수"] = (
+                (today.year - target_df["계약일"].dt.year) * 12 +
+                (today.month - target_df["계약일"].dt.month)
+            )
+            target_df["가중치"] = np.exp(-0.02 * target_df["개월수"])
 
-        deals = get_trade_deals(lawd_cd, dong, jibun, months, building_type)
-        if not deals.empty:
-            deals["거리_km"] = row["거리_km"]
-            deal_list.append(deals)
+            median_price = round(target_df["㎡당가격"].median())
+            weighted_mean = round(np.average(target_df["㎡당가격"], weights=target_df["가중치"]))
 
-    # 4️⃣ 시세 계산 (가중 중앙값)
-    combined = pd.concat(deal_list, ignore_index=True)
-    combined["㎡당가격"] = combined["거래금액"] / combined["전용면적"]
+            msg = "유사 평형" if len(filtered_df) >= 3 else "전체"
 
-    today = pd.Timestamp.today()
-    combined["계약일"] = pd.to_datetime(combined["계약일"])
-    combined["개월수"] = (today.year - combined["계약일"].dt.year) * 12 + (today.month - combined["계약일"].dt.month)
+            return median_price, weighted_mean, f"{year_offset+1}년 기준 ({msg})"
 
-    combined["거리_가중치"] = np.exp(-3.0 * combined["거리_km"])
-    combined["시간_가중치"] = np.exp(-0.15 * combined["개월수"])
-    combined["가중치"] = combined["거리_가중치"] * combined["시간_가중치"]
+    # 5년치 누적에도 5건 미만
+    if not all_df.empty:
+        all_df["계약일"] = pd.to_datetime(all_df["계약일"])
+        latest = all_df.sort_values("계약일", ascending=False).iloc[0]
+        unit_price = round(latest["거래금액"] / latest["전용면적"])
+        print("⚠️ 거래 건수 부족 — 최근 거래 1건 기준으로 반환합니다.")
+        return unit_price, unit_price, f"최근 거래 1건 ({latest['계약일'].date()})"
 
-    return weighted_median(combined["㎡당가격"], combined["가중치"])
+    print("❌ 거래 데이터가 존재하지 않습니다.")
+    return None, None, "데이터 부족"
 
-address = "서울특별시 관악구 남현동 602-28"
-building_type = "아파트"
+address = "서울특별시 관악구 봉천동 148-149"
+building_type = "다세대"
+exclusive_area = 64
 
 region, dong, jibun = parse_address(address)
 
 # 법정동 코드 조회
 lawd_cd = get_region_prefix(region)
-df_coords = load_coords_by_building_type(building_type)
-fallback_callback = lambda: fallback_strategy(address, lawd_cd, df_coords, building_type)
 
 # 메인 실행
-price, per = estimate_real_estate_price(lawd_cd, dong, jibun, building_type, fallback_callback=fallback_callback)
-print(f"\n📊 최종 추정 시세: {price:,} 원/㎡ ({per})")
+median_price, mean_price, per = estimate_real_estate_price(lawd_cd, dong, jibun, exclusive_area, building_type)
+print(per)
+print(f"최종 추정 시세 중앙값: {median_price:,} 원/㎡")
+print(f"최종 추정 시세 가중 평균값: {mean_price:,} 원/㎡")
