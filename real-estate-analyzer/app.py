@@ -9,6 +9,8 @@ from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
+from estimator.final import get_estimated_price
+
 #======================================================================
 # # ★★★[기능 추가] 위험 판단 로직을 app.py에 연동하기 위한 import 구문
 #======================================================================
@@ -168,7 +170,8 @@ def parse_summary_from_text(text):
         "included_fees": r"관리비 포함항목:\s*\[(.*)\]",
         "lessor_name": r"임대인:\s*(?!계좌정보)(.*)",
         "lessee_name": r"임차인:\s*(.*)",
-        "lessor_account": r"임대인 계좌정보:\s*(.*)"
+        "lessor_account": r"임대인 계좌정보:\s*(.*)",
+        "building_type": r"건물유형:\s*(.*)" #[추가] 
     }
 
     for key, pattern in patterns.items():
@@ -337,12 +340,29 @@ def process_analysis():
         owner_name = parsed_data.get("owner_name")
         lessor_name = parsed_data.get("lessor_name")
         deposit = parsed_data.get("deposit")
-        market_price = deposit + 5000000  # Mock 시세 (임시 처리)
+        register_addr = parsed_data.get("register_addr")
+        contract_addr = parsed_data.get("contract_addr")
+
+        building_type = "아파트"  # 임시 지정. 실제론 계약서 기반으로 판단해야 정확.
+
+         # ✅ [디버깅] 입력값 확인용 로그
+        print("[디버깅] owner_name:", owner_name)
+        print("[디버깅] lessor_name:", lessor_name)
+        print("[디버깅] deposit:", deposit)
+        print("[디버깅] register_addr:", register_addr)
+        print("[디버깅] contract_addr:", contract_addr)
+        print("[디버깅] building_type:", building_type)
+        print("💬 get_estimated_price 시작:", contract_addr, building_type)
+
+        market_price, market_basis = get_estimated_price(contract_addr, building_type)
+        print("✅ 시세 예측 완료:", market_price, market_basis)
+        # market_price = deposit + 5000000  # Mock 시세 (임시 처리)
         has_mortgage = parsed_data.get("has_mortgage")
         is_mortgage_cleared = parsed_data.get("is_mortgage_cleared")
         mortgage_amount = parsed_data.get("mortgage_amount")
-        register_addr = parsed_data.get("register_addr")
-        contract_addr = parsed_data.get("contract_addr")
+     
+
+      
         
         if owner_name and lessor_name:
             logic_results['임대인-소유주 일치'] = check_owner_match(owner_name, lessor_name)
@@ -360,9 +380,10 @@ def process_analysis():
             logic_results['주소 일치 여부'] = compare_address(register_addr, contract_addr, confm_key)
 
          # 종합 위험 등급 계산
-        grades = [res["grade"] for res in logic_results.values() if res.get("grade") in ["위험", "주의", "안전"]]
-        overall_result = determine_overall_risk(grades)
-
+        print("💬 determine_overall_risk 시작")
+        overall_result = determine_overall_risk(logic_results)
+        print("✅ 종합 위험 판단 완료:", overall_result)
+        print("[디버깅] overall_result 전체:", overall_result)
 
         # 결과 포맷 정리
         details = []
@@ -373,11 +394,24 @@ def process_analysis():
                     "grade":item["grade"],
                     "message": item["message"]
                 })
+
+        # avg_score 안전하게 추출
+        avg_score_raw = overall_result.get("avg_score", None)
+        print("[디버깅] avg_score type:", type(avg_score_raw), "값:", avg_score_raw)
+
+        try:
+            avg_score_rounded = round(avg_score_raw, 1) if avg_score_raw is not None else None
+        except Exception as e:
+            print("⚠️ avg_score rounding error:", e)
+            avg_score_rounded = None
+
         final_result = {
             "overall_grade": overall_result["overall_grade"],
-            "avg_score": round(overall_result["avg_score"],1) if overall_result["avg_score"] else None,
+            "avg_score": avg_score_rounded,
             "risk_count" : overall_result["risk_count"],
             "caution_count": overall_result["caution_count"],
+            "market_price": market_price,
+            "market_basis": market_basis,
             "details": details
         }
         
@@ -385,8 +419,16 @@ def process_analysis():
 
     except Exception as e:
         print(f"위험 판단 로직 처리 중 오류: {e}")
-        logic_results["error"] = f"위험 판단 로직 오류: {str(e)}"
-        overall_grade = "판단불가"
+        return jsonify({
+        "overall_grade": "판단불가",
+        "avg_score": None,
+        "risk_count": None,
+        "caution_count": None,
+        "market_price": None,
+        "market_basis": None,
+        "details": [],
+        "error": f"위험 판단 로직 오류: {str(e)}"
+    }), 500
 
 
 
@@ -417,34 +459,7 @@ def process_analysis():
             print(f"특약사항 분석 중 오류 발생: {e}")
             clauses_analysis_result = "특약사항 분석 중 오류가 발생했습니다."
 
-    # # 4. 시세 검증 (외부 API 호출) - 현재는 Mock(모의) 데이터로 구현
-    # price_verification = "시세 정보 확인 불가"
-    # contract_addr = parsed_data.get('contract_addr')
-    # deposit = parsed_data.get('deposit')
-    # if contract_addr and deposit:
-    #     try:
-    #         # 임시로 적어둔거에요 수정할때 주의부탁드립니다.
-    #         # REAL_ESTATE_API_KEY = os.environ.get('REAL_ESTATE_API_KEY')
-    #         # API_ENDPOINT = "https://실제.부동산.API/주소"
-    #         # headers = {'Authorization': f'Bearer {REAL_ESTATE_API_KEY}'}
-    #         # params = {'address': contract_addr}
-    #         # response = requests.get(API_ENDPOINT, headers=headers, params=params)
-    #         # response.raise_for_status()
-    #         # market_price = response.json().get('average_deposit')
-            
-    #         # --- Mock(모의) 데이터 시작 ---
-    #         market_price = deposit + 5000000 # 시세가 보증금보다 500만원 높다고 가정
-    #         # --- Mock 데이터 끝 ---
-
-    #         if deposit > market_price * 1.1:
-    #             price_verification = f"주의 🟡: 보증금이 시세({market_price:,}원)보다 10% 이상 높습니다."
-    #         elif deposit < market_price * 0.9:
-    #             price_verification = f"양호 🟢: 보증금이 시세({market_price:,}원)보다 저렴합니다."
-    #         else:
-    #             price_verification = f"양호 🟢: 보증금이 시세({market_price:,}원) 수준입니다."
-    #     except Exception as e:
-    #         print(f"시세 조회 중 오류 발생: {e}")
-    #         price_verification = "시세 정보를 가져오는 데 실패했습니다."
+    
 
     # 분석 결과를 JSON 형태로 응답 반환
     # - logic_results: 위험 판단 로직 결과 (근저당 여부, 보증금 초과 등)

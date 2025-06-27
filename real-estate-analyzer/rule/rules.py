@@ -2,7 +2,7 @@
 import re
 import requests
 import os
-
+#핵심정보 검증 로직
 # ----------------------------------------------------
 # 1-1. 주소 타입 감지 함수
 # ----------------------------------------------------
@@ -261,15 +261,22 @@ def map_grade_to_score(grade):
 # ----------------------------------------------------
 # 5-2. 종합 위험도 판단 함수
 # ----------------------------------------------------
-def determine_overall_risk(grades: list) -> dict:
+def determine_overall_risk(logic_results: dict) -> dict:
     scores = []
     risk_count = 0
     caution_count = 0  # 주의 카운터
+    owner_mismatch_risk = False
 
-    for grade in grades:
+    for key, result in logic_results.items():
+        grade = result.get("grade")
         if grade == "위험":
             scores.append(5)
             risk_count += 1
+
+            #임대인-소유자 불일치가 위험인 경우, 전체도 무조건 위험 처리
+            if result.get("type") == "소유자-임대인 일치 여부":
+                owner_mismatch_risk = True
+
         elif grade == "주의":
             caution_count += 1
             scores.append(3 + (caution_count - 1))  # 주의 누적 시 가중치 적용
@@ -279,8 +286,18 @@ def determine_overall_risk(grades: list) -> dict:
     if not scores:
         return {
             "overall_grade": "판단불가",
-            "avg_score": None,
+            "avg_score": 0.0,
             "risk_count": risk_count,
+            "caution_count": caution_count,
+            "scores": scores,
+        }
+    
+    #강제 위험 조건 : 임대인- 소유자 불일치
+    if owner_mismatch_risk:
+        return{
+            "overall_grade": "위험",
+            "avg_score": sum(scores) / len(scores),
+            "risk_count" : risk_count,
             "caution_count": caution_count,
             "scores": scores,
         }
