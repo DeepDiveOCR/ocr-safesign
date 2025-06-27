@@ -356,7 +356,6 @@ def process_analysis():
 
         market_price, market_basis = get_estimated_price(contract_addr, building_type)
         print("✅ 시세 예측 완료:", market_price, market_basis)
-        # market_price = deposit + 5000000  # Mock 시세 (임시 처리)
         has_mortgage = parsed_data.get("has_mortgage")
         is_mortgage_cleared = parsed_data.get("is_mortgage_cleared")
         mortgage_amount = parsed_data.get("mortgage_amount")
