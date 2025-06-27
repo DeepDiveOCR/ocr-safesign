@@ -160,6 +160,10 @@
 
                             <div class="analysis-section">
                                 <div id="clauses-analysis-container">
+                                    <div id="clause-raw-text" class="text-sm text-gray-600 whitespace-pre-line mt-4"></div>
+                                    <div class="mb-2 text-sm text-gray-700" id="risk-count"></div>
+                                    <div class="mb-2 font-bold text-lg" id="risk-grade"></div>
+                                    <div class="text-sm text-gray-600" id="grade-reason"></div>
                                 </div>
                             </div>
 
@@ -178,15 +182,15 @@
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     // ★★★[추가] Firebase & Auth UI Elements ★★★
-    const firebaseConfig = {
-        apiKey: "AIzaSyDUHNNboNybvxgJyy9dPf797UlPaLzLFqk",
-        authDomain: "safesign-c8e3d.firebaseapp.com",
-        projectId: "safesign-c8e3d",
-        storageBucket: "safesign-c8e3d.appspot.com",
-        messagingSenderId: "348853030550",
-        appId: "1:348853030550:web:fa8f8f9f0311639f5afcb7"
-        // measurementId는 필수가 아니므로 제거 가능
-    };
+   const firebaseConfig = {
+        apiKey: "AIzaSyDshiVgNA04Cuhy4U0Mb16gxsHwUp_BKcM",
+        authDomain: "safesign-5dd44.firebaseapp.com",
+        projectId: "safesign-5dd44",
+        storageBucket: "safesign-5dd44.firebasestorage.app",
+        messagingSenderId: "221489615514",
+        appId: "1:221489615514:web:981d7b423426dce93b8523",
+        // measurementId: "G-NB9JVG2MNC"
+    };  
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     const db = firebase.firestore();
@@ -194,7 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Kakao JavaScript 키 적용 이 부분 본인 kakao js키로 변경해주세요
     // .env 파일에 있는 KAKAO_JS_KEY 값 사용
 
-    Kakao.init('9704aaa519a2910982fbab41369a3a5d');
+        Kakao.init('9704aaa519a2910982fbab41369a3a5d');
     console.log('Kakao SDK initialized:', Kakao.isInitialized());
     // console.log(process.env.KAKAO_JS_KEY);
 
@@ -380,6 +384,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 originalClausesText = data.clausesText || '';
                 displayAnalysisResults(data.analysisReport);
                 appState = 'analysis_done';
+                // Inserted per instruction: set state to ocr_done and update UI
+                appState = 'ocr_done';
                 updateUI();
                 
                 // 스크롤을 결과 뷰로 이동
@@ -477,7 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     alert('오류: ' + data.error);
                     ocrResults.value = `오류 발생: ${data.error}`;
                 } else {
-                    ocrResults.value = data.summary_text;
+                    ocrResults.value = data.summary_text + "\n\n특약사항\n" + data.clauses_text;
                     originalClausesText = data.clauses_text;
                     appState = 'ocr_done';
                 }
@@ -498,15 +504,25 @@ document.addEventListener('DOMContentLoaded', () => {
             actionBtn.disabled = true;
             actionSpinner.classList.remove('hidden');
             actionBtnText.textContent = '종합 분석 중...';
-            
+
             const finalSummaryText = ocrResults.value;
+            // 특약사항 텍스트는 textarea에서 다시 추출해야 함
+            let finalClausesText = "";
+            // "특약사항" 이후의 텍스트를 추출 (한글/영문/공백 대응)
+            const clausesMatch = finalSummaryText.match(/특약사항\s*\n*([\s\S]*)$/i);
+            if (clausesMatch) {
+                finalClausesText = clausesMatch[1].trim();
+            } else {
+                // "특약사항"이 없으면 전체 텍스트를 보냄 (백엔드에서 처리)
+                finalClausesText = finalSummaryText.trim();
+            }
 
             fetch('/process-analysis', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     summary_text: finalSummaryText,
-                    clauses_text: originalClausesText,
+                    clauses_text: finalClausesText,
                     uid: currentUser.uid // 백엔드 요청 시 UID 추가
                 })
             })
@@ -536,63 +552,177 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ★★★[기능 추가] 종합 분석 결과를 화면에 표시하는 함수 (기존 코드)
-    function displayAnalysisResults(result) {
-        const identityCell = document.getElementById('verification-identity');
-        const priceCell = document.getElementById('verification-price');
-
-        identityCell.textContent = result.verifications.identity || '확인 불가';
-        priceCell.textContent = result.verifications.price || '확인 불가';
-        
-        identityCell.className = 'verification-value';
-        if (identityCell.textContent.includes('불일치')) {
-            identityCell.classList.add('verification-danger');
-        } else if (identityCell.textContent.includes('일치')) {
-            identityCell.classList.add('verification-safe');
-        }
-
-        priceCell.className = 'verification-value';
-        if (priceCell.textContent.includes('주의') || priceCell.textContent.includes('높습니다')) {
-            priceCell.classList.add('verification-warn');
-        } else if (priceCell.textContent.includes('양호')) {
-            priceCell.classList.add('verification-safe');
-        }
-        
-        const clausesContainer = document.getElementById('clauses-analysis-container');
-        const analysisData = result.verifications.clauses;
-        let overallRisk = '안전';
-
-        if (analysisData.includes('위험도: 높음')) {
-            overallRisk = '위험';
-        } else if (analysisData.includes('위험도: 중간')) {
-            overallRisk = '주의';
-        }
-
-        let riskCardHtml = '';
-        if (overallRisk === '위험') {
-            riskCardHtml = `<div class="p-4 rounded-lg flex items-center gap-4 bg-red-50 border border-red-200"><span class="text-red-500"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span><div><p class="font-bold text-xl text-red-700">위험</p><p class="text-sm text-red-600">보증금 미반환 위험이 높은 고위험 계약입니다.</p></div></div>`;
-        } else if (overallRisk === '주의') {
-            riskCardHtml = `<div class="p-4 rounded-lg flex items-center gap-4 bg-yellow-50 border border-yellow-200"><span class="text-yellow-500"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg></span><div><p class="font-bold text-xl text-yellow-700">주의</p><p class="text-sm text-yellow-600">계약 전 반드시 확인해야 할 사항이 있습니다.</p></div></div>`;
-        } else {
-            riskCardHtml = `<div class="p-4 rounded-lg flex items-center gap-4 bg-green-50 border border-green-200"><span class="text-green-500"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span><div><p class="font-bold text-xl text-green-700">안전</p><p class="text-sm text-green-600">분석 결과 특이사항이 발견되지 않았습니다.</p></div></div>`;
-        }
-
-        const converter = new showdown.Converter({tables: true, openLinksInNewWindow: true});
-        const clausesHtml = converter.makeHtml(analysisData);
-        clausesContainer.innerHTML = `<h3>특약사항 분석</h3>` + riskCardHtml + `<div class="mt-4">${clausesHtml}</div>`;
-        
-        const riskKeywords = { '높음': 'risk-high', '중간': 'risk-medium', '낮음': 'risk-low' };
-        clausesContainer.querySelectorAll('td, p').forEach(el => {
-            for (const keyword in riskKeywords) {
-                if (el.textContent.includes(keyword)) {
-                    const regex = new RegExp(`(위험도: |\\|)\\s*${keyword}`, 'g');
-                    el.innerHTML = el.innerHTML.replace(regex, `<span class="risk-badge ${riskKeywords[keyword]}">${keyword}</span>`);
-                }
-            }
-        });
-
-        analysisPlaceholder.classList.add('hidden');
-        analysisResultView.classList.remove('hidden');
+    // ✅ 기존 displayAnalysisResults 함수 삭제하고 여기에 넣으면 됨
+function displayAnalysisResults(result) {
+    // Guard clause: ensure result and result.verifications exist
+    if (!result || !result.verifications) {
+        console.warn("❗ result.verifications is undefined");
+        return;
     }
+
+    const identityCell = document.getElementById('verification-identity');
+    const priceCell = document.getElementById('verification-price');
+
+    identityCell.textContent = result.verifications.identity || '확인 불가';
+    priceCell.textContent = result.verifications.price || '확인 불가';
+
+    identityCell.className = 'verification-value';
+    if (identityCell.textContent.includes('불일치')) {
+        identityCell.classList.add('verification-danger');
+    } else if (identityCell.textContent.includes('일치')) {
+        identityCell.classList.add('verification-safe');
+    }
+
+    priceCell.className = 'verification-value';
+    if (priceCell.textContent.includes('주의') || priceCell.textContent.includes('높')) {
+        priceCell.classList.add('verification-warn');
+    } else if (priceCell.textContent.includes('양호')) {
+        priceCell.classList.add('verification-safe');
+    }
+
+    const clausesContainer = document.getElementById('clauses-analysis-container');
+    document.getElementById('clause-raw-text').textContent = originalClausesText || result.raw_clauses || '';
+    const analysisData = result.verifications.clauses || "";
+
+    // 분석 텍스트 조각화
+    const clauseLines = analysisData.split(/\n+/);
+    const filteredLines = clauseLines.filter(line => line.trim() !== '');
+
+    clausesContainer.innerHTML = '';
+    filteredLines.forEach(line => {
+        const p = document.createElement('p');
+        p.textContent = line;
+        clausesContainer.appendChild(p);
+    });
+
+    // 오직 '위험도:'가 포함된 줄만 위험 분석 대상으로 추가
+    const risks = filteredLines.filter(line => line.includes('위험도:'));
+
+    let scores = risks.map(text => {
+        if (text.includes('위험도: 높음') || text.includes('불일치')) return 5;
+        if (text.includes('위험도: 중간') || text.includes('주의')) return 3;
+        if (text.includes('위험도: 낮음') || text.includes('일치')) return 1;
+        return 3; // 기타는 중간 취급
+    });
+
+    // 핵심 정보 검증 항목도 위험도 점수에 반영
+    if (result.verifications.identity) {
+        const text = result.verifications.identity;
+        if (text.includes('불일치') || text.includes('정보 부족') || text.includes('확인 불가')) {
+            scores.push(5);
+        } else if (text.includes('주의')) {
+            scores.push(3);
+        } else if (text.includes('일치')) {
+            scores.push(1);
+        }
+    }
+
+    if (result.verifications.price) {
+        const text = result.verifications.price;
+        if (text.includes('높음') || text.includes('주의') || text.includes('확인 불가') || text.includes('정보 부족')) {
+            scores.push(5);
+        } else if (text.includes('중간')) {
+            scores.push(3);
+        } else if (text.includes('양호')) {
+            scores.push(1);
+        }
+    }
+
+    const highCount = scores.filter(s => s === 5).length;
+    const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+
+    let finalGrade = '안전';
+    let reason = '';
+    if (highCount >= 2) {
+        finalGrade = '위험';
+        reason = '높음 위험 조항이 2개 이상 있어 ‘위험’으로 판단되었습니다.';
+    } else if (avgScore > 4.0) {
+        finalGrade = '위험';
+        reason = '주의 조항 누적으로 평균 점수가 4.1 이상으로 ‘위험’으로 판단되었습니다.';
+    } else if (avgScore > 2.0) {
+        finalGrade = '주의';
+        reason = '주의 조항 누적으로 평균 점수가 2.1 이상으로 ‘주의’로 판단되었습니다.';
+    } else {
+        reason = '평균 점수가 낮아 ‘안전’으로 판단되었습니다.';
+    }
+
+    const riskCountEl = document.getElementById('risk-count');
+    const riskGradeEl = document.getElementById('risk-grade');
+    const gradeReasonEl = document.getElementById('grade-reason');
+
+    if (riskCountEl && riskGradeEl && gradeReasonEl) {
+        riskCountEl.innerHTML = `
+            분석 대상 수: ${scores.length}<br>
+            - 위험 등급 높음: ${highCount}<br>
+            - 주의 등급: ${scores.filter(s => s === 3).length}<br>
+            - 안전 등급: ${scores.filter(s => s === 1).length}
+        `;
+        riskGradeEl.textContent = finalGrade;
+        riskGradeEl.className = 'grade-text';
+        if (finalGrade === '위험') {
+            riskGradeEl.classList.add('grade-danger');
+        } else if (finalGrade === '주의') {
+            riskGradeEl.classList.add('grade-warn');
+        } else {
+            riskGradeEl.classList.add('grade-safe');
+        }
+        gradeReasonEl.textContent = reason;
+    } else {
+        console.warn("❗ 결과를 표시할 요소 중 일부가 존재하지 않습니다.");
+    }
+
+
+    console.log("📊 전체 risks:", risks);
+    console.log("📊 score 리스트:", scores);
+    console.log("📊 highCount:", highCount);
+    console.log("📊 avgScore:", avgScore);
+    console.log("📊 최종 등급:", finalGrade);
+    {
+    // 등급별 UI 카드
+    let riskCardHtml = '';
+    if (finalGrade === '위험') {
+        riskCardHtml = `<div class="p-4 rounded-lg flex items-center gap-4 bg-red-50 border border-red-200"><span class="text-red-500">⚠️</span><div><p class="font-bold text-xl text-red-700">위험</p><p class="text-sm text-red-600">보증금 미반환 위험이 높은 고위험 계약입니다.</p></div></div>`;
+    } else if (finalGrade === '주의') {
+        riskCardHtml = `<div class="p-4 rounded-lg flex items-center gap-4 bg-yellow-50 border border-yellow-200"><span class="text-yellow-500">⚠️</span><div><p class="font-bold text-xl text-yellow-700">주의</p><p class="text-sm text-yellow-600">계약 전 반드시 확인해야 할 사항이 있습니다.</p></div></div>`;
+    } else {
+        riskCardHtml = `<div class="p-4 rounded-lg flex items-center gap-4 bg-green-50 border border-green-200"><span class="text-green-500">✔️</span><div><p class="font-bold text-xl text-green-700">안전</p><p class="text-sm text-green-600">분석 결과 특이사항이 발견되지 않았습니다.</p></div></div>`;
+    }
+
+    const converter = new showdown.Converter({tables: true, openLinksInNewWindow: true});
+    const clausesHtml = converter.makeHtml(analysisData);
+
+    // For the clause summary, need to define mediumScoreCount and lowScoreCount
+    const mediumScoreCount = scores.filter(s => s === 3).length;
+    const lowScoreCount = scores.filter(s => s === 1).length;
+    const clauseSummary = `
+    <p class="text-sm text-gray-500 mt-2">
+        분석 대상 수: ${scores.length}개<br>
+        - 위험 등급 높음: ${highCount}개<br>
+        - 주의 등급: ${mediumScoreCount}개<br>
+        - 안전 등급: ${lowScoreCount}개
+    </p>
+    <p class="text-sm text-gray-500 mt-2">
+        등급 산정 사유: ${reason}
+    </p>
+    `;
+
+    clausesContainer.innerHTML = `<h3>특약사항 분석</h3>` + riskCardHtml + clauseSummary +
+        (analysisData.trim() ? `<div class="mt-4">${clausesHtml}</div>` : `<div class="mt-4 text-sm text-gray-500">분석할 특약사항 없음</div>`);
+
+    const riskKeywords = { '높음': 'risk-high', '중간': 'risk-medium', '낮음': 'risk-low' };
+    clausesContainer.querySelectorAll('td, p').forEach(el => {
+        for (const keyword in riskKeywords) {
+            if (el.textContent.includes(keyword)) {
+                const regex = new RegExp(`(위험도: |\\|)\\s*${keyword}`, 'g');
+                el.innerHTML = el.innerHTML.replace(regex, `<span class="risk-badge ${riskKeywords[keyword]}">${keyword}</span>`);
+            }
+        }
+    });
+
+    analysisPlaceholder.classList.add('hidden');
+    analysisResultView.classList.remove('hidden');
+    }
+}
 
     registerPreview.addEventListener('click', () => showSideImageViewer(registerPreview.src));
     contractPreview.addEventListener('click', () => showSideImageViewer(contractPreview.src));
