@@ -121,14 +121,6 @@ def get_trade_deals(lawd_cd, target_dong, target_jibun, building_type, yyyymm):
 
     return pd.DataFrame(all_data)
 
-def weighted_median(values, weights):
-    sorted_idx = np.argsort(values)
-    sorted_values = np.array(values)[sorted_idx]
-    sorted_weights = np.array(weights)[sorted_idx]
-    cumulative_weight = np.cumsum(sorted_weights)
-    cutoff = 0.5 * sum(sorted_weights)
-    return sorted_values[cumulative_weight >= cutoff][0]
-
 # ✅ 통합 시세 추정 함수
 def estimate_real_estate_price(lawd_cd, target_dong, target_jibun, target_area, building_type):
     all_df = pd.DataFrame()
@@ -157,18 +149,12 @@ def estimate_real_estate_price(lawd_cd, target_dong, target_jibun, target_area, 
 
             target_df["㎡당가격"] = target_df["거래금액"] / target_df["전용면적"]
             target_df["계약일"] = pd.to_datetime(target_df["계약일"])
-            target_df["개월수"] = (
-                (today.year - target_df["계약일"].dt.year) * 12 +
-                (today.month - target_df["계약일"].dt.month)
-            )
-            target_df["가중치"] = np.exp(-0.02 * target_df["개월수"])
 
             median_price = round(target_df["㎡당가격"].median())
-            weighted_mean = round(np.average(target_df["㎡당가격"], weights=target_df["가중치"]))
 
             msg = "유사 평형" if len(filtered_df) >= 3 else "전체"
 
-            return median_price, weighted_mean, f"{year_offset+1}년 기준 ({msg})"
+            return median_price, f"{year_offset+1}년 기준 ({msg})"
 
     # 5년치 누적에도 5건 미만
     if not all_df.empty:
@@ -191,7 +177,6 @@ region, dong, jibun = parse_address(address)
 lawd_cd = get_region_prefix(region)
 
 # 메인 실행
-median_price, mean_price, per = estimate_real_estate_price(lawd_cd, dong, jibun, exclusive_area, building_type)
+median_price, per = estimate_real_estate_price(lawd_cd, dong, jibun, exclusive_area, building_type)
 print(per)
 print(f"최종 추정 시세 중앙값: {median_price:,} 원/㎡")
-print(f"최종 추정 시세 가중 평균값: {mean_price:,} 원/㎡")
