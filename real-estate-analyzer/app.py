@@ -512,6 +512,25 @@ def process_analysis():
    - 위험도: 중간 — 해석에 따라 불리하게 적용될 수 있으나 일정 조건 하에 대응 가능한 경우
    - 위험도: 낮음 — 일반적이지만 주의가 필요한 조항일 경우
 3. **최종 요약**: "### 최종 요약" 제목 아래, 위험도가 '높음'인 조항이 있다면 최대 2~3개를 언급하고 전체 위험 수준을 간결하게 정리해주세요. 과도한 판단은 피하고, 조항 수와 실제 위험성을 바탕으로 신중히 평가해주세요.
+4. 각 조항을 다음 구조로 시각적으로 구성된 **카드 형식**으로 출력하세요:
+
+- 번호: 각 조항 앞에 `<span class="risk-number">1.</span>` 형식으로 강조된 숫자를 명시하세요.
+- 조항 내용: `<b>조항 내용</b>`
+- 위험도: 다음 형식 중 하나를 사용하세요:
+  - `<div class="risk-badge risk-high">🚨 위험</div>`
+  - `<div class="risk-badge risk-medium">⚠️ 주의</div>`
+  - `<div class="risk-badge risk-low">✔️ 낮음</div>`
+- 설명: `<div class="risk-desc">...</div>`
+5. 주관적인 추측, 과장된 판단, 또는 명확한 근거 없이 '위험' 또는 '주의' 등급을 부여하지 마세요. 계약서에 명확하게 불리한 조건이 기재된 경우에만 판단해야 하며, 불확실한 조항은 '주의' 또는 '낮음'으로 분류하는 것이 원칙입니다.
+
+예시:
+<div class="risk-card">
+  <div class="risk-title"><b><span class="risk-number">1.</span> 조항 내용</b></div>
+  <div class="risk-badge risk-high">🚨 위험</div>
+  <div class="risk-desc">계약 위반 시 임대인에게 과도한 권한이 주어져 임차인에게 불리할 수 있음</div>
+</div>
+
+📌 **중요**: 분석 결과에는 "대한민국 부동산 계약 특약사항 분석" 또는 "(임차인 입장)" 같은 제목, 인사말, 서론, 불필요한 포맷은 절대 포함하지 마세요. **오직 분석 결과 카드 형식만 출력하세요.**
 """
             response = model.generate_content(prompt)
             clauses_analysis_result = response.text
@@ -590,4 +609,3 @@ def process_analysis():
 # ======================================================================
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
