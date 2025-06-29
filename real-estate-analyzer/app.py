@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 # ★★★[기능 추가] Firebase 서버 연동을 위한 Admin SDK ★★★
 import firebase_admin
 from firebase_admin import credentials, auth, firestore # ★★★[수정] firestore 임포트
-from estimator.final import get_estimated_price
+from estimator.median_price import estimate_median_trade
 
 #======================================================================
 # # ★★★[기능 추가] 위험 판단 로직을 app.py에 연동하기 위한 import 구문
@@ -24,7 +24,7 @@ from rule.rules import (
     check_deposit_over_market,
     check_mortgage_vs_deposit,
     compare_address,
-    determine_overall_risk,
+    # determine_overall_risk,
 )
 
 
@@ -34,7 +34,10 @@ from rule.rules import (
 
 # .env 파일에서 환경 변수를 로드합니다.
 # 이 함수는 app.py와 같은 위치에 있는 .env 파일을 찾아서 그 안의 값들을 환경 변수로 설정합니다.
+# .env 파일에서 환경 변수를 로드합니다.
+# 이 함수는 app.py와 같은 위치에 있는 .env 파일을 찾아서 그 안의 값들을 환경 변수로 설정합니다.
 load_dotenv() 
+confm_key = os.getenv("CONFIRM_KEY") #주소 검색용 공공 API 인증키
 confm_key = os.getenv("CONFIRM_KEY") #주소 검색용 공공 API 인증키
 
 app = Flask(__name__)
@@ -48,15 +51,19 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 # EasyOCR 리더 전역 변수로 초기화 (매번 로드하지 않도록)
+# EasyOCR 리더 전역 변수로 초기화 (매번 로드하지 않도록)
 print("EasyOCR 리더를 초기화합니다...")
 reader = easyocr.Reader(['ko','en'])
 print("✅ EasyOCR 리더 초기화 완료.")
 
 # Gemini 모델 설정
+# Gemini 모델 설정
 try:
+    # os.environ.get()을 사용하여 .env 파일에서 로드된 API 키를 가져옵니다.
     # os.environ.get()을 사용하여 .env 파일에서 로드된 API 키를 가져옵니다.
     GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY') 
     if not GOOGLE_API_KEY:
+        # .env 파일에 키가 없는 경우 에러를 발생시켜 서버가 실행되지 않도록 합니다.
         # .env 파일에 키가 없는 경우 에러를 발생시켜 서버가 실행되지 않도록 합니다.
         raise ValueError("환경 변수에서 GOOGLE_API_KEY를 찾을 수 없습니다. .env 파일을 확인해주세요.")
     
@@ -82,6 +89,7 @@ except Exception as e:
     print(f"🚨 Gemini API 설정 오류: {e}")
     model = None
 
+# Colab 코드에 있던 이미지 처리 함수들
 # Colab 코드에 있던 이미지 처리 함수들
 def enhance_image_for_ocr(image_path, output_path="enhanced_image.png"):
     """이미지 비율을 먼저 확인하여 90도 회전 여부를 결정하는 최종 로직"""
@@ -183,6 +191,7 @@ def parse_summary_from_text(text):
         "handover_date": r"명도일:\s*(\d{4}-\d{2}-\d{2})",
         "contract_addr": r"계약주소:\s*(.*)",
         "register_addr": r"등기부등본 주소:\s*(.*)",
+        "register_addr": r"등기부등본 주소:\s*(.*)",
         "deposit": r"보증금:\s*([\d,]+)원",
         "monthly_rent": r"월세:\s*([\d,]+)원",
         "maintenance_fee": r"관리비:\s*([\d,]+)원",
@@ -222,10 +231,12 @@ def parse_summary_from_text(text):
 # ======================================================================
 
 # 메인 페이지를 보여주는 라우트
+# 메인 페이지를 보여주는 라우트
 @app.route('/')
 def index():
     return render_template('index.html')
 
+# OCR 처리를 담당하는 API 라우트
 # OCR 처리를 담당하는 API 라우트
 @app.route('/ocr', methods=['POST'])
 def ocr_process():
@@ -236,6 +247,7 @@ def ocr_process():
     contract_file = request.files['contractFile']
     
     # 파일 임시 저장
+    # 파일 임시 저장
     register_filename = secure_filename(register_file.filename)
     contract_filename = secure_filename(contract_file.filename)
     register_path = os.path.join(app.config['UPLOAD_FOLDER'], register_filename)
@@ -245,11 +257,13 @@ def ocr_process():
 
     try:
         # --- 등기부등본 처리 ---
+        # --- 등기부등본 처리 ---
         enhanced_reg_path, _ = enhance_image_for_ocr(register_path, f"enhanced_{register_filename}")
         if not enhanced_reg_path: raise Exception("등기부등본 이미지 처리 실패")
         reg_results = reader.readtext(enhanced_reg_path)
         reg_text = "\n".join([res[1] for res in reg_results])
 
+        # --- 계약서 처리 ---
         # --- 계약서 처리 ---
         enhanced_con_path, _ = enhance_image_for_ocr(contract_path, f"enhanced_{contract_filename}")
         if not enhanced_con_path: raise Exception("계약서 이미지 처리 실패")
@@ -261,6 +275,9 @@ def ocr_process():
         full_ocr_text = f"[등기부등본 OCR 결과]\n{reg_text}\n\n[계약서 OCR 결과]\n{con_text}"
         
         # 프롬프트
+        full_ocr_text = f"[등기부등본 OCR 결과]\n{reg_text}\n\n[계약서 OCR 결과]\n{con_text}"
+        
+        # 프롬프트
         prompt = f"""
         당신은 대한민국 부동산 임대차 계약서와 등기부등본을 분석해 **요약 정보**와 **특약사항**을 구분하여 제공하는 AI 전문가입니다.
         아래 OCR 텍스트를 바탕으로, 지정된 형식에 맞춰 **요약 정보**와 **특약사항**을 정확히 추출해주세요.
@@ -268,6 +285,7 @@ def ocr_process():
         
         요약 형식:
         --- 등기부등본 요약 ---
+        - 등기부등본 주소: (도로명 또는 지번 주소)
         - 등기부등본 주소: (도로명 또는 지번 주소)
         - 현재 소유자: OOO
         - 현재 소유자 주민등록번호: 주민등록번호
@@ -337,8 +355,10 @@ def ocr_process():
     
     finally:
         # try/except 블록이 끝나면 항상 임시 파일들을 삭제합니다.
+        # try/except 블록이 끝나면 항상 임시 파일들을 삭제합니다.
         if os.path.exists(register_path): os.remove(register_path)
         if os.path.exists(contract_path): os.remove(contract_path)
+        # 전처리된 파일들도 삭제
         # 전처리된 파일들도 삭제
         if 'enhanced_reg_path' in locals() and os.path.exists(enhanced_reg_path): os.remove(enhanced_reg_path)
         if 'enhanced_con_path' in locals() and os.path.exists(enhanced_con_path): os.remove(enhanced_con_path)
@@ -361,7 +381,7 @@ def process_analysis():
 
     # 1. 백엔드에서 텍스트 파싱
     parsed_data = parse_summary_from_text(summary_text)
-    
+ 
     # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
     # ★★★ 요청하신 모든 변수의 개별 로그를 확인하는 부분 ★★★
     # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
@@ -407,9 +427,13 @@ def process_analysis():
  # ★★★[추가]위험 판단 로직 실행 (rule.rules 모듈 내 함수 기반으로 각 리스크 항목 평가) 
  # ======================================================================
     logic_results = {}
-    overall_grade = "판단불가"  # ← 초기값 지정
+
+    market_price = None
+    market_basis = None
+    
 
     try:
+        # === 입력 데이터 파싱 ===
         owner_name = parsed_data.get("owner_name")
         lessor_name = parsed_data.get("lessor_name")
         deposit = parsed_data.get("deposit")
@@ -418,84 +442,58 @@ def process_analysis():
 
         building_type = "아파트"  # 임시 지정. 실제론 계약서 기반으로 판단해야 정확.
 
-         # ✅ [디버깅] 입력값 확인용 로그
+        has_mortgage = parsed_data.get("has_mortgage")
+        is_mortgage_cleared = parsed_data.get("is_mortgage_cleared")
+        mortgage_amount = parsed_data.get("mortgage_amount")
+
+         # === 디버깅 로그 ===
         print("[디버깅] owner_name:", owner_name)
         print("[디버깅] lessor_name:", lessor_name)
         print("[디버깅] deposit:", deposit)
         print("[디버깅] register_addr:", register_addr)
         print("[디버깅] contract_addr:", contract_addr)
         print("[디버깅] building_type:", building_type)
-        print("💬 get_estimated_price 시작:", contract_addr, building_type)
-
-        market_price, market_basis = get_estimated_price(contract_addr, building_type)
-        print("✅ 시세 예측 완료:", market_price, market_basis)
-        has_mortgage = parsed_data.get("has_mortgage")
-        is_mortgage_cleared = parsed_data.get("is_mortgage_cleared")
-        mortgage_amount = parsed_data.get("mortgage_amount")
-     
-
-      
         
+        # === 위험 요소 판단 ===
         if owner_name and lessor_name:
             logic_results['임대인-소유주 일치'] = check_owner_match(owner_name, lessor_name)
             
         if has_mortgage is not None and is_mortgage_cleared is not None:
             logic_results['근저당 위험'] = check_mortgage_risk(has_mortgage, is_mortgage_cleared)
 
-        if deposit and market_price:
-            logic_results['시세 대비 보증금 위험'] = check_deposit_over_market(deposit, market_price)
-
-        if deposit and mortgage_amount:
-            logic_results['보증금 대비 채권최고액 위험'] = check_mortgage_vs_deposit(deposit, market_price, mortgage_amount)
-
         if register_addr and contract_addr:
             logic_results['주소 일치 여부'] = compare_address(register_addr, contract_addr, confm_key)
-
-         # 종합 위험 등급 계산
-        print("💬 determine_overall_risk 시작")
-        overall_result = determine_overall_risk(logic_results)
-        print("✅ 종합 위험 판단 완료:", overall_result)
-        print("[디버깅] overall_result 전체:", overall_result)
-
-        # 결과 포맷 정리
-        details = []
-        for item in logic_results.values():
-            if item.get("grade"):
-                details.append({
-                    "type": item.get("type", "기타"),
-                    "grade":item["grade"],
-                    "message": item["message"]
-                })
-
-        # avg_score 안전하게 추출
-        avg_score_raw = overall_result.get("avg_score", None)
-        print("[디버깅] avg_score type:", type(avg_score_raw), "값:", avg_score_raw)
-
-        try:
-            avg_score_rounded = round(avg_score_raw, 1) if avg_score_raw is not None else None
-        except Exception as e:
-            print("⚠️ avg_score rounding error:", e)
-            avg_score_rounded = None
-
-        final_result = {
-            "overall_grade": overall_result["overall_grade"],
-            "avg_score": avg_score_rounded,
-            "risk_count" : overall_result["risk_count"],
-            "caution_count": overall_result["caution_count"],
-            "market_price": market_price,
-            "market_basis": market_basis,
-            "details": details
-        }
         
-        return jsonify(final_result)
+        # === 시세 예측 (실패해도 나머지 계속 진행) ===
+        try:
+            print("💬 시세 예측 시작:", contract_addr, building_type)
+            _, market_price, market_basis= estimate_median_trade(contract_addr, building_type, 30.0)
+            print("✅ 시세 예측 완료:", market_price, market_basis)
 
+            if deposit and market_price:
+                logic_results['시세 대비 보증금 위험'] = check_deposit_over_market(deposit, market_price)
+
+            if deposit and mortgage_amount:
+                logic_results['보증금 대비 채권최고액 위험'] = check_mortgage_vs_deposit(deposit, market_price, mortgage_amount)
+
+        except Exception as e:
+            print("❌ 거래 시세 예측 실패:", e)
+            market_price = None
+            market_basis = "시세 예측 실패"
+
+        # # === 결과 포맷 정리 ===
+        details = []
+        for key, result in logic_results.items():
+            if result and isinstance(result, dict) and result.get("grade"):
+                details.append({
+                    "type": key,
+                    "grade":result["grade"],
+                    "message": result["message"]
+                })
+        
     except Exception as e:
-        print(f"위험 판단 로직 처리 중 오류: {e}")
+        print(f"오류오류 오류: {e}")
         return jsonify({
-        "overall_grade": "판단불가",
-        "avg_score": None,
-        "risk_count": None,
-        "caution_count": None,
         "market_price": None,
         "market_basis": None,
         "details": [],
@@ -537,7 +535,6 @@ def process_analysis():
     # - clauses_analysis: 특약사항 분석 결과 (LLM 또는 규칙 기반 처리)
     final_result = {
         "logic_results": logic_results,
-        "overall_grade": overall_grade,
         "clauses_analysis": clauses_analysis_result
         }
     
