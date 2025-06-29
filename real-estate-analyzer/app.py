@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 # ★★★[기능 추가] Firebase 서버 연동을 위한 Admin SDK ★★★
 import firebase_admin
 from firebase_admin import credentials, auth, firestore # ★★★[수정] firestore 임포트
-from estimator.final import get_estimated_price
+from estimator.median_price import estimate_median_trade
 
 #======================================================================
 # # ★★★[기능 추가] 위험 판단 로직을 app.py에 연동하기 위한 import 구문
@@ -24,7 +24,7 @@ from rule.rules import (
     check_deposit_over_market,
     check_mortgage_vs_deposit,
     compare_address,
-    determine_overall_risk,
+    # determine_overall_risk,
 )
 
 
@@ -382,108 +382,6 @@ def process_analysis():
     # 1. 백엔드에서 텍스트 파싱
     parsed_data = parse_summary_from_text(summary_text)
  
- # ======================================================================
- # ★★★[추가]위험 판단 로직 실행 (rule.rules 모듈 내 함수 기반으로 각 리스크 항목 평가) 
- # ======================================================================
-    logic_results = {}
-    overall_grade = "판단불가"  # ← 초기값 지정
-
-    try:
-        owner_name = parsed_data.get("owner_name")
-        lessor_name = parsed_data.get("lessor_name")
-        deposit = parsed_data.get("deposit")
-        register_addr = parsed_data.get("register_addr")
-        contract_addr = parsed_data.get("contract_addr")
-
-        building_type = "아파트"  # 임시 지정. 실제론 계약서 기반으로 판단해야 정확.
-
-         # ✅ [디버깅] 입력값 확인용 로그
-        print("[디버깅] owner_name:", owner_name)
-        print("[디버깅] lessor_name:", lessor_name)
-        print("[디버깅] deposit:", deposit)
-        print("[디버깅] register_addr:", register_addr)
-        print("[디버깅] contract_addr:", contract_addr)
-        print("[디버깅] building_type:", building_type)
-        print("💬 get_estimated_price 시작:", contract_addr, building_type)
-
-        market_price, market_basis = get_estimated_price(contract_addr, building_type)
-        print("✅ 시세 예측 완료:", market_price, market_basis)
-        has_mortgage = parsed_data.get("has_mortgage")
-        is_mortgage_cleared = parsed_data.get("is_mortgage_cleared")
-        mortgage_amount = parsed_data.get("mortgage_amount")
-     
-
-      
-        
-        if owner_name and lessor_name:
-            logic_results['임대인-소유주 일치'] = check_owner_match(owner_name, lessor_name)
-            
-        if has_mortgage is not None and is_mortgage_cleared is not None:
-            logic_results['근저당 위험'] = check_mortgage_risk(has_mortgage, is_mortgage_cleared)
-
-        if deposit and market_price:
-            logic_results['시세 대비 보증금 위험'] = check_deposit_over_market(deposit, market_price)
-
-        if deposit and mortgage_amount:
-            logic_results['보증금 대비 채권최고액 위험'] = check_mortgage_vs_deposit(deposit, market_price, mortgage_amount)
-
-        if register_addr and contract_addr:
-            logic_results['주소 일치 여부'] = compare_address(register_addr, contract_addr, confm_key)
-
-         # 종합 위험 등급 계산
-        print("💬 determine_overall_risk 시작")
-        overall_result = determine_overall_risk(logic_results)
-        print("✅ 종합 위험 판단 완료:", overall_result)
-        print("[디버깅] overall_result 전체:", overall_result)
-
-        # 결과 포맷 정리
-        details = []
-        for item in logic_results.values():
-            if item.get("grade"):
-                details.append({
-                    "type": item.get("type", "기타"),
-                    "grade":item["grade"],
-                    "message": item["message"]
-                })
-
-        # avg_score 안전하게 추출
-        avg_score_raw = overall_result.get("avg_score", None)
-        print("[디버깅] avg_score type:", type(avg_score_raw), "값:", avg_score_raw)
-
-        try:
-            avg_score_rounded = round(avg_score_raw, 1) if avg_score_raw is not None else None
-        except Exception as e:
-            print("⚠️ avg_score rounding error:", e)
-            avg_score_rounded = None
-
-        final_result = {
-            "overall_grade": overall_result["overall_grade"],
-            "avg_score": avg_score_rounded,
-            "risk_count" : overall_result["risk_count"],
-            "caution_count": overall_result["caution_count"],
-            "market_price": market_price,
-            "market_basis": market_basis,
-            "details": details
-        }
-        
-        
-
-    except Exception as e:
-        print(f"위험 판단 로직 처리 중 오류: {e}")
-        return jsonify({
-        "overall_grade": "판단불가",
-        "avg_score": None,
-        "risk_count": None,
-        "caution_count": None,
-        "market_price": None,
-        "market_basis": None,
-        "details": [],
-        "error": f"위험 판단 로직 오류: {str(e)}"
-    }), 500
-
-
-
-    
     # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
     # ★★★ 요청하신 모든 변수의 개별 로그를 확인하는 부분 ★★★
     # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
@@ -529,9 +427,13 @@ def process_analysis():
  # ★★★[추가]위험 판단 로직 실행 (rule.rules 모듈 내 함수 기반으로 각 리스크 항목 평가) 
  # ======================================================================
     logic_results = {}
-    overall_grade = "판단불가"  # ← 초기값 지정
+
+    market_price = None
+    market_basis = None
+    
 
     try:
+        # === 입력 데이터 파싱 ===
         owner_name = parsed_data.get("owner_name")
         lessor_name = parsed_data.get("lessor_name")
         deposit = parsed_data.get("deposit")
@@ -540,84 +442,58 @@ def process_analysis():
 
         building_type = "아파트"  # 임시 지정. 실제론 계약서 기반으로 판단해야 정확.
 
-         # ✅ [디버깅] 입력값 확인용 로그
+        has_mortgage = parsed_data.get("has_mortgage")
+        is_mortgage_cleared = parsed_data.get("is_mortgage_cleared")
+        mortgage_amount = parsed_data.get("mortgage_amount")
+
+         # === 디버깅 로그 ===
         print("[디버깅] owner_name:", owner_name)
         print("[디버깅] lessor_name:", lessor_name)
         print("[디버깅] deposit:", deposit)
         print("[디버깅] register_addr:", register_addr)
         print("[디버깅] contract_addr:", contract_addr)
         print("[디버깅] building_type:", building_type)
-        print("💬 get_estimated_price 시작:", contract_addr, building_type)
-
-        market_price, market_basis = get_estimated_price(contract_addr, building_type)
-        print("✅ 시세 예측 완료:", market_price, market_basis)
-        has_mortgage = parsed_data.get("has_mortgage")
-        is_mortgage_cleared = parsed_data.get("is_mortgage_cleared")
-        mortgage_amount = parsed_data.get("mortgage_amount")
-     
-
-      
         
+        # === 위험 요소 판단 ===
         if owner_name and lessor_name:
             logic_results['임대인-소유주 일치'] = check_owner_match(owner_name, lessor_name)
             
         if has_mortgage is not None and is_mortgage_cleared is not None:
             logic_results['근저당 위험'] = check_mortgage_risk(has_mortgage, is_mortgage_cleared)
 
-        if deposit and market_price:
-            logic_results['시세 대비 보증금 위험'] = check_deposit_over_market(deposit, market_price)
-
-        if deposit and mortgage_amount:
-            logic_results['보증금 대비 채권최고액 위험'] = check_mortgage_vs_deposit(deposit, market_price, mortgage_amount)
-
         if register_addr and contract_addr:
             logic_results['주소 일치 여부'] = compare_address(register_addr, contract_addr, confm_key)
-
-         # 종합 위험 등급 계산
-        print("💬 determine_overall_risk 시작")
-        overall_result = determine_overall_risk(logic_results)
-        print("✅ 종합 위험 판단 완료:", overall_result)
-        print("[디버깅] overall_result 전체:", overall_result)
-
-        # 결과 포맷 정리
-        details = []
-        for item in logic_results.values():
-            if item.get("grade"):
-                details.append({
-                    "type": item.get("type", "기타"),
-                    "grade":item["grade"],
-                    "message": item["message"]
-                })
-
-        # avg_score 안전하게 추출
-        avg_score_raw = overall_result.get("avg_score", None)
-        print("[디버깅] avg_score type:", type(avg_score_raw), "값:", avg_score_raw)
-
+        
+        # === 시세 예측 (실패해도 나머지 계속 진행) ===
         try:
-            avg_score_rounded = round(avg_score_raw, 1) if avg_score_raw is not None else None
+            print("💬 시세 예측 시작:", contract_addr, building_type)
+            _, market_price, market_basis= estimate_median_trade(contract_addr, building_type, 30.0)
+            print("✅ 시세 예측 완료:", market_price, market_basis)
+
+            if deposit and market_price:
+                logic_results['시세 대비 보증금 위험'] = check_deposit_over_market(deposit, market_price)
+
+            if deposit and mortgage_amount:
+                logic_results['보증금 대비 채권최고액 위험'] = check_mortgage_vs_deposit(deposit, market_price, mortgage_amount)
+
         except Exception as e:
-            print("⚠️ avg_score rounding error:", e)
-            avg_score_rounded = None
+            print("❌ 거래 시세 예측 실패:", e)
+            market_price = None
+            market_basis = "시세 예측 실패"
 
-        final_result = {
-            "overall_grade": overall_result["overall_grade"],
-            "avg_score": avg_score_rounded,
-            "risk_count" : overall_result["risk_count"],
-            "caution_count": overall_result["caution_count"],
-            "market_price": market_price,
-            "market_basis": market_basis,
-            "details": details
-        }
+        # # === 결과 포맷 정리 ===
+        details = []
+        for key, result in logic_results.items():
+            if result and isinstance(result, dict) and result.get("grade"):
+                details.append({
+                    "type": key,
+                    "grade":result["grade"],
+                    "message": result["message"]
+                })
         
-        
-
     except Exception as e:
-        print(f"위험 판단 로직 처리 중 오류: {e}")
+        print(f"오류오류 오류: {e}")
         return jsonify({
-        "overall_grade": "판단불가",
-        "avg_score": None,
-        "risk_count": None,
-        "caution_count": None,
         "market_price": None,
         "market_basis": None,
         "details": [],
@@ -659,7 +535,6 @@ def process_analysis():
     # - clauses_analysis: 특약사항 분석 결과 (LLM 또는 규칙 기반 처리)
     final_result = {
         "logic_results": logic_results,
-        "overall_grade": overall_grade,
         "clauses_analysis": clauses_analysis_result
         }
     
