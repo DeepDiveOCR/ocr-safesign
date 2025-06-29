@@ -8,12 +8,9 @@ import os
 # ----------------------------------------------------
 def detect_address_type(address):
     #도로명 주소의 일반적인 패턴 (예: 강남대로 123)
-    if re.search(r"(로|길)\s?\d+", address):
+    if re.search(r"(로|길|대로)\s?\d+", address):
         return "도로명"
-    elif re.search(r"\d+번?지", address):
-        return "지번"
-    else:
-        return "알수없음"
+    return "지번"
 
 # ----------------------------------------------------
 # 1-2. 주소 변환 함수 (도로명 -> 지번) /현재 타켓은 지번 -> 다 지번 주소로 통일
@@ -43,7 +40,7 @@ def unify_address(address, confm_key, target="지번"):
     try:
         res.raise_for_status()
         results = res.json()
-        print(f"api 응답: {results}\n")
+        # print(f"api 응답: {results}\n")
         juso = results['results']['juso']
         if not juso:
             print("변환된 주소가 없음\n")
@@ -107,14 +104,14 @@ def compare_address(contract_addr, register_addr, confm_key):
             "is_risk": False,
             "grade": "안전",
             "type": "주소 일치 여부",
-            "message": "✅ 지번주소와 동/호수까지 모두 일치합니다.",
+            "message": "✅ 지번주소 또는 동/호수까지 모두 일치합니다.",
         }
     else:
         return {
             "is_risk": True,
             "grade": "위험",
             "type": "주소 일치 여부",
-            "message": f"📛 주소 또는 동/호수 불일치\n계약서: {contract_norm} {contract_dongho}\n등기부: {register_norm} {register_dongho}",
+            "message": f"📛 주소 또는 동/호수 불일치\n계약서: {contract_norm} {contract_dongho}\n 등기부: {register_norm} {register_dongho}",
         }
 
 # ----------------------------------------------------
@@ -238,9 +235,12 @@ def check_mortgage_vs_deposit(deposit, market_price, mortgage_amount):
         }
     else: #보증금이 회수 가능한 금액 이내인 경우
         return {
-            "is_risk": False,
-            "grade": None,
-            "message": None,
+            "is_risk": True,
+            "grade": "주의",
+            "message": (
+                f"보증금이 회수 가능한 금액({remaining_value:,}원) 이내입니다.\n"
+                f"깡통전세 가능성은 낮지만, 경매 절차 및 기타 변수에 따라 달라질 수 있으므로 주의가 필요합니다."
+            ),
             "deposit": deposit,
             "market_price": market_price,
             "mortgage_amount": mortgage_amount,
@@ -261,73 +261,73 @@ def map_grade_to_score(grade):
 # ----------------------------------------------------
 # 5-2. 종합 위험도 판단 함수
 # ----------------------------------------------------
-def determine_overall_risk(logic_results: dict) -> dict:
-    scores = []
-    risk_count = 0
-    caution_count = 0  # 주의 카운터
-    owner_mismatch_risk = False
+# def determine_overall_risk(logic_results: dict) -> dict:
+#     scores = []
+#     risk_count = 0
+#     caution_count = 0  # 주의 카운터
+#     owner_mismatch_risk = False
 
-    for key, result in logic_results.items():
-        grade = result.get("grade")
-        if grade == "위험":
-            scores.append(5)
-            risk_count += 1
+#     for key, result in logic_results.items():
+#         grade = result.get("grade")
+#         if grade == "위험":
+#             scores.append(5)
+#             risk_count += 1
 
-            #임대인-소유자 불일치가 위험인 경우, 전체도 무조건 위험 처리
-            if result.get("type") == "소유자-임대인 일치 여부":
-                owner_mismatch_risk = True
+#             #임대인-소유자 불일치가 위험인 경우, 전체도 무조건 위험 처리
+#             if result.get("type") == "소유자-임대인 일치 여부":
+#                 owner_mismatch_risk = True
 
-        elif grade == "주의":
-            caution_count += 1
-            scores.append(3 + (caution_count - 1))  # 주의 누적 시 가중치 적용
-        elif grade == "안전":
-            scores.append(1)
+#         elif grade == "주의":
+#             caution_count += 1
+#             scores.append(3 + (caution_count - 1))  # 주의 누적 시 가중치 적용
+#         elif grade == "안전":
+#             scores.append(1)
 
-    if not scores:
-        return {
-            "overall_grade": "판단불가",
-            "avg_score": 0.0,
-            "risk_count": risk_count,
-            "caution_count": caution_count,
-            "scores": scores,
-        }
+#     if not scores:
+#         return {
+#             "overall_grade": "판단불가",
+#             "avg_score": 0.0,
+#             "risk_count": risk_count,
+#             "caution_count": caution_count,
+#             "scores": scores,
+#         }
     
-    #강제 위험 조건 : 임대인- 소유자 불일치
-    if owner_mismatch_risk:
-        return{
-            "overall_grade": "위험",
-            "avg_score": sum(scores) / len(scores),
-            "risk_count" : risk_count,
-            "caution_count": caution_count,
-            "scores": scores,
-        }
+#     #강제 위험 조건 : 임대인- 소유자 불일치
+#     if owner_mismatch_risk:
+#         return{
+#             "overall_grade": "위험",
+#             "avg_score": sum(scores) / len(scores),
+#             "risk_count" : risk_count,
+#             "caution_count": caution_count,
+#             "scores": scores,
+#         }
 
-    # 위험 요소 2개 이상이면 무조건 위험
-    if risk_count >= 2:
-        return {
-            "overall_grade": "위험",
-            "avg_score": sum(scores) / len(scores),
-            "risk_count": risk_count,
-            "caution_count": caution_count,
-            "scores": scores,
-        }
+#     # 위험 요소 2개 이상이면 무조건 위험
+#     if risk_count >= 2:
+#         return {
+#             "overall_grade": "위험",
+#             "avg_score": sum(scores) / len(scores),
+#             "risk_count": risk_count,
+#             "caution_count": caution_count,
+#             "scores": scores,
+#         }
 
-    avg_score = sum(scores) / len(scores)
+#     avg_score = sum(scores) / len(scores)
 
-    if 1.0 <= avg_score <= 2.0:
-        grade = "안전"
-    elif avg_score <= 4.0:
-        grade = "주의"
-    else:
-        grade = "위험"
+#     if 1.0 <= avg_score <= 2.0:
+#         grade = "안전"
+#     elif avg_score <= 4.0:
+#         grade = "주의"
+#     else:
+#         grade = "위험"
 
-    return {
-        "overall_grade": grade,
-        "avg_score": avg_score,
-        "risk_count": risk_count,
-        "caution_count": caution_count,
-        "scores": scores,
-    }
+#     return {
+#         "overall_grade": grade,
+#         "avg_score": avg_score,
+#         "risk_count": risk_count,
+#         "caution_count": caution_count,
+#         "scores": scores,
+#     }
 
 
 
