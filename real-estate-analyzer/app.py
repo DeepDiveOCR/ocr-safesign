@@ -9,6 +9,7 @@ import requests # ★★★[기능 추가] 외부 API 호출을 위한 라이브
 from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+from datetime import datetime
 
 # ★★★[기능 추가] Firebase 서버 연동을 위한 Admin SDK ★★★
 import firebase_admin
@@ -36,6 +37,9 @@ from rule.rules import (
 # 이 함수는 app.py와 같은 위치에 있는 .env 파일을 찾아서 그 안의 값들을 환경 변수로 설정합니다.
 # .env 파일에서 환경 변수를 로드합니다.
 # 이 함수는 app.py와 같은 위치에 있는 .env 파일을 찾아서 그 안의 값들을 환경 변수로 설정합니다.
+
+import warnings
+warnings.filterwarnings("ignore", message="Could not initialize NNPACK")
 load_dotenv() 
 confm_key = os.getenv("CONFIRM_KEY") #주소 검색용 공공 API 인증키
 confm_key = os.getenv("CONFIRM_KEY") #주소 검색용 공공 API 인증키
@@ -43,9 +47,6 @@ confm_key = os.getenv("CONFIRM_KEY") #주소 검색용 공공 API 인증키
 app = Flask(__name__)
 # 세션 쿠키는 이제 사용하지 않으므로 secret_key가 필수적이지 않지만, 다른 확장을 위해 유지합니다.
 app.secret_key = 'safesign_robust' 
-
-if not os.path.exists('uploads'):
-    os.makedirs('uploads')
     
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -53,7 +54,8 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 # EasyOCR 리더 전역 변수로 초기화 (매번 로드하지 않도록)
 # EasyOCR 리더 전역 변수로 초기화 (매번 로드하지 않도록)
 print("EasyOCR 리더를 초기화합니다...")
-reader = easyocr.Reader(['ko','en'])
+home_dir = os.path.expanduser("~")
+reader = easyocr.Reader(['ko', 'en'], gpu=False, model_storage_directory=f"{home_dir}/.EasyOCR")
 print("✅ EasyOCR 리더 초기화 완료.")
 
 # Gemini 모델 설정
@@ -248,8 +250,10 @@ def ocr_process():
     
     # 파일 임시 저장
     # 파일 임시 저장
-    register_filename = secure_filename(register_file.filename)
-    contract_filename = secure_filename(contract_file.filename)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+    register_filename = f"{timestamp}_register_{secure_filename(register_file.filename)}"
+    contract_filename = f"{timestamp}_contract_{secure_filename(contract_file.filename)}"
     register_path = os.path.join(app.config['UPLOAD_FOLDER'], register_filename)
     contract_path = os.path.join(app.config['UPLOAD_FOLDER'], contract_filename)
     register_file.save(register_path)
@@ -366,6 +370,62 @@ def ocr_process():
 # ======================================================================
 # ★★★ [구조 변경] 모든 분석을 처리하는 새로운 단일 종합 엔드포인트 ★★★
 # ======================================================================
+
+@app.route('/kakao-login', methods=['POST'])
+def kakao_login():
+    data = request.get_json()
+    access_token = data.get('token')
+
+    if not access_token:
+        return jsonify({'error': '카카오 액세스 토큰이 필요합니다.'}), 400
+
+    KAKAO_USERINFO_URL = "https://kapi.kakao.com/v2/user/me"
+    headers = {'Authorization': f'Bearer {access_token}'}
+    
+    try:
+        print("--- 카카오 서버에 사용자 정보 요청 ---")
+        response = requests.get(KAKAO_USERINFO_URL, headers=headers)
+        response.raise_for_status()
+        kakao_user_info = response.json()
+        print(f"✅ 카카오 사용자 정보 수신 성공: {kakao_user_info}")
+
+        kakao_user_id = str(kakao_user_info.get('id'))
+        profile = kakao_user_info.get('properties', {})
+        nickname = profile.get('nickname')
+        
+        if not kakao_user_id:
+            return jsonify({'error': '카카오로부터 사용자 ID를 받을 수 없습니다.'}), 400
+
+        uid = f'kakao:{kakao_user_id}'
+
+        print(f"--- Firebase 처리 시작 (UID: {uid}) ---")
+        try:
+            auth.update_user(uid, display_name=nickname)
+            print(f"✅ 기존 Firebase 사용자 정보 업데이트 완료.")
+        except auth.UserNotFoundError:
+            auth.create_user(uid=uid, display_name=nickname)
+            print(f"✅ 신규 Firebase 사용자 생성 완료.")
+            
+            # ★★★[기능 추가] 신규 사용자일 경우, Firestore DB에 회원 정보 저장 ★★★
+            user_data = {
+                'nickname': nickname,
+                'createdAt': firestore.SERVER_TIMESTAMP
+            }
+            db.collection('users').document(uid).set(user_data)
+            print(f"✅ Firestore DB에 신규 회원 정보 저장 완료 (UID: {uid})")
+        
+        custom_token = auth.create_custom_token(uid)
+        print("✅ Firebase 커스텀 토큰 생성 성공.")
+
+        return jsonify({'firebase_token': custom_token.decode('utf-8')})
+
+    except requests.exceptions.HTTPError as e:
+        print(f"🚨 카카오 토큰 인증 실패: {e.response.text}")
+        return jsonify({'error': '유효하지 않은 카카오 토큰입니다.', 'details': e.response.json()}), 401
+    except Exception as e:
+        print(f"🚨 로그인 처리 중 심각한 오류 발생: {e}")
+        return jsonify({'error': f'서버 내부 오류 발생: {e}'}), 500
+
 @app.route('/process-analysis', methods=['POST'])
 
 def process_analysis():
