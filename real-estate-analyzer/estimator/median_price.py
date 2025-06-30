@@ -67,9 +67,9 @@ def get_api_url(building_type, log_type):
     api_types = mapping.get(building_type)
     trade_type, rent_type = api_types
     if log_type == "trade":
-        return f"https://apis.data.go.kr/1613000/RTMSDataSvc{trade_type}/getRTMSDataSvc{trade_type}"
+        return f"http://apis.data.go.kr/1613000/RTMSDataSvc{trade_type}/getRTMSDataSvc{trade_type}"
     elif log_type == "rent":
-        return f"https://apis.data.go.kr/1613000/RTMSDataSvc{rent_type}/getRTMSDataSvc{rent_type}"
+        return f"http://apis.data.go.kr/1613000/RTMSDataSvc{rent_type}/getRTMSDataSvc{rent_type}"
     return None, None
 
 

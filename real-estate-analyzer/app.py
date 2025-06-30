@@ -594,9 +594,11 @@ def process_analysis():
     # - logic_results: 위험 판단 로직 결과 (근저당 여부, 보증금 초과 등)
     # - clauses_analysis: 특약사항 분석 결과 (LLM 또는 규칙 기반 처리)
     final_result = {
+        "verifications": {
         "logic_results": logic_results,
         "clauses_analysis": clauses_analysis_result
         }
+    }
     
     
     # ★★★[기능 추가] 분석 결과를 Firestore에 저장 ★★★
@@ -604,7 +606,7 @@ def process_analysis():
         analysis_data_to_save = {
             'summaryText': summary_text,      # 사용자가 확인/수정한 요약 원본 텍스트
             # 'clausesText': clauses_text,      # 사용자가 확인/수정한 특약사항 원본 텍스트 후처리가 필요할것같아서 임시 보류
-            'analysisReport': final_result['verifications']['clauses'],   # AI가 생성한 최종 보고서만 입력
+            'analysisReport': final_result['verifications']['clauses_analysis'],   # AI가 생성한 최종 보고서만 입력
             'createdAt': firestore.SERVER_TIMESTAMP # 분석 시간
         }
         # users/{uid}/analyses 컬렉션에 새로운 문서 추가
