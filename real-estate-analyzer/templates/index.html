@@ -151,6 +151,14 @@
                                             <td id="verification-identity" class="verification-value">-</td>
                                         </tr>
                                         <tr>
+                                            <th>주소 일치 여부</th>
+                                            <td id="verification-address" class="verification-value">-</td>
+                                        </tr>
+                                        <tr>
+                                            <th>보증금 &gt; (시세 - 채권최고액)</th>
+                                            <td id="verification-gap" class="verification-value">-</td>
+                                        </tr>
+                                        <tr>
                                             <th>보증금 시세 비교</th>
                                             <td id="verification-price" class="verification-value">-</td>
                                         </tr>
@@ -562,9 +570,23 @@ function displayAnalysisResults(result) {
 
     const identityCell = document.getElementById('verification-identity');
     const priceCell = document.getElementById('verification-price');
+    const addressCell = document.getElementById('verification-address');
+    const gapCell = document.getElementById('verification-gap');
 
+    // Set identity result as before (may still show '확인 불가')
     identityCell.textContent = result.verifications.identity || '확인 불가';
-    priceCell.textContent = result.verifications.price || '확인 불가';
+
+    // For address and gap, always set to '-' if not present or not meaningful
+    if (addressCell) addressCell.textContent = '-';
+    if (gapCell) gapCell.textContent = '-';
+
+    // For price, ensure only '-' is shown if empty/unrecognized, not '확인 불가'
+    let priceVal = result.verifications.price;
+    if (!priceVal || priceVal === '' || priceVal === '확인 불가' || priceVal === '정보 부족') {
+        priceCell.textContent = '-';
+    } else {
+        priceCell.textContent = priceVal;
+    }
 
     identityCell.className = 'verification-value';
     if (identityCell.textContent.includes('불일치')) {

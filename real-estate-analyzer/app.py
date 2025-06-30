@@ -539,34 +539,7 @@ def process_analysis():
             clauses_analysis_result = "특약사항 분석 중 오류가 발생했습니다."
 
     # 4. 시세 검증 (외부 API 호출) - 현재는 Mock(모의) 데이터로 구현
-    price_verification = "시세 정보 확인 불가"
-    contract_addr = parsed_data.get('contract_addr')
-    deposit = parsed_data.get('deposit')
-    deposit_risk = evaluate_deposit_risk(deposit)
-    if contract_addr and deposit:
-        try:
-            # 임시로 적어둔거에요 수정할때 주의부탁드립니다.
-            # REAL_ESTATE_API_KEY = os.environ.get('REAL_ESTATE_API_KEY')
-            # API_ENDPOINT = "https://실제.부동산.API/주소"
-            # headers = {'Authorization': f'Bearer {REAL_ESTATE_API_KEY}'}
-            # params = {'address': contract_addr}
-            # response = requests.get(API_ENDPOINT, headers=headers, params=params)
-            # response.raise_for_status()
-            # market_price = response.json().get('average_deposit')
-            
-            # --- Mock(모의) 데이터 시작 ---
-            market_price = deposit + 5000000 # 시세가 보증금보다 500만원 높다고 가정
-            # --- Mock 데이터 끝 ---
-
-            if deposit > market_price * 1.1:
-                price_verification = f"주의 🟡: 보증금이 시세({market_price:,}원)보다 10% 이상 높습니다."
-            elif deposit < market_price * 0.9:
-                price_verification = f"양호 🟢: 보증금이 시세({market_price:,}원)보다 저렴합니다."
-            else:
-                price_verification = f"양호 🟢: 보증금이 시세({market_price:,}원) 수준입니다."
-        except Exception as e:
-            print(f"시세 조회 중 오류 발생: {e}")
-            price_verification = "시세 정보를 가져오는 데 실패했습니다."
+    price_verification = ""
 
     # 5. 모든 결과를 종합하여 한번에 반환
     final_result = {
