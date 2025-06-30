@@ -55,7 +55,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 # EasyOCR 리더 전역 변수로 초기화 (매번 로드하지 않도록)
 print("EasyOCR 리더를 초기화합니다...")
 home_dir = os.path.expanduser("~")
-reader = easyocr.Reader(['ko', 'en'], gpu=False, model_storage_directory=f"{home_dir}/.EasyOCR")
+reader = easyocr.Reader(['ko'], gpu=False, model_storage_directory=f"{home_dir}/.EasyOCR")
 print("✅ EasyOCR 리더 초기화 완료.")
 
 # Gemini 모델 설정
