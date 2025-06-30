@@ -1,19 +1,36 @@
 import requests
 import pandas as pd
-import numpy as np
 from xml.etree import ElementTree as ET
 from datetime import datetime, timedelta
-from math import radians, sin, cos, sqrt, atan2
-from sklearn.neighbors import BallTree
+import re
 
 # 주소 파싱
 def parse_address(address):
-    tokens = address.strip().split()
-    gu_index = next((i for i, t in enumerate(tokens) if t.endswith("구") or t.endswith("군")), None)
-    region_name = " ".join(tokens[:gu_index + 1])
-    umdNm = tokens[gu_index + 1]
-    jibun = tokens[gu_index + 2]
-    return region_name, umdNm, jibun
+    address = re.sub(r'\(.*?\)', '', address)
+    address = re.sub(r',.*', '', address)
+    address = address.strip()
+
+    tokens = address.split()
+    
+    si_idx = next((i for i, t in enumerate(tokens) if t.endswith("시") or t.endswith("특별시") or t.endswith("광역시") or t.endswith("도")), None)
+    gu_idx = next((i for i, t in enumerate(tokens) if t.endswith("구") or t.endswith("군")), None)
+
+    if si_idx is None or gu_idx is None or gu_idx <= si_idx:
+        raise ValueError(f"주소 파싱 실패: {address}")
+
+    region_name = " ".join(tokens[:gu_idx + 1])
+
+    if len(tokens) > gu_idx + 1:
+        dong = tokens[gu_idx + 1]
+    else:
+        raise ValueError(f"동 이름 파싱 실패: {address}")
+
+    if len(tokens) > gu_idx + 2:
+        jibun = " ".join(tokens[gu_idx + 2:])
+    else:
+        raise ValueError(f"지번 파싱 실패: {address}")
+
+    return region_name, dong, jibun
 
 # 법정동 코드 조회
 def get_region_prefix(region_name):
