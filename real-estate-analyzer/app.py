@@ -333,6 +333,10 @@ def ocr_process():
 ---
 
 [최종 분석]
+- 아래 문단은 최종 분석을 포함하는 매우 중요한 항목입니다.
+- 이 항목은 절대 생략하지 말고 반드시 작성해야 합니다.
+- 누락되면 전체 응답이 무효 처리됩니다.
+- 아래의 지시를 반드시 따르세요.
 - 점수 기준에 따라 '위험', '주의', '안전' 중 하나로 최종 등급을 판단하세요.
 - 등급 판단 사유를 자연스럽고 신뢰도 있게 설명하는 문장으로 서술해 주세요.
 - 최종 분석 항목으로, 전체 계약서를 종합적으로 평가한 결과를 서술해 주세요.
@@ -345,21 +349,7 @@ def ocr_process():
         # ★★★ [구조 변경] Gemini가 생성한 텍스트를 '요약'과 '특약사항'과 '최종 분석 '으로 분리
         summary_part = ""
         clauses_part = "특약사항 없음" # 기본값
-        final_summary = ""
-
-        # 패턴 기반 파싱
-        # 1. "[최종 분석]" 블록이 있으면 그 이후 ~ 다음 대제목 또는 끝까지 추출
-        import re
-        m = re.search(r"\[최종 분석\](.*?)(?:\n\[|$)", full_corrected_text, re.DOTALL)
-        if m:
-            final_summary = m.group(1).strip()
-        else:
-            final_summary = ""
-        # 2. summary_part: "[최종 분석]" 이전까지
-        if "[최종 분석]" in full_corrected_text:
-            summary_part = full_corrected_text.split("[최종 분석]", 1)[0].strip()
-        else:
-            summary_part = full_corrected_text.strip()
+        
         # 3. clauses_part: "특약사항" 이후 전체
         split_keyword = "특약사항"
         if split_keyword in full_corrected_text:
@@ -372,8 +362,7 @@ def ocr_process():
         # 분리된 텍스트를 각각 JSON으로 반환
         return jsonify({
             'summary_text': summary_part,
-            'clauses_text': clauses_part,
-            'final_summary': final_summary
+            'clauses_text': clauses_part
         })
 
     except Exception as e:
@@ -459,12 +448,6 @@ def process_analysis():
 
     # === [최종 분석] 블록 추출 ===
     import re
-    final_summary = ""
-    if summary_text:
-        # [최종 분석] 추출
-        final_summary_match = re.search(r"\[최종 분석\](.*?)(?=\n\[|$)", summary_text, re.DOTALL)
-        final_summary = final_summary_match.group(1).strip() if final_summary_match else ""
-        print("[디버깅] final_summary 값:", final_summary)
 
     if not summary_text:
         return jsonify({'error': '분석할 요약 내용이 없습니다.'}), 400
@@ -846,15 +829,13 @@ def process_analysis():
             "risk_high_count": risk_high_count,
             "risk_medium_count": risk_medium_count,
             "risk_low_count": risk_low_count,
-            # === [최종 분석] 블록 추가 ===
-            "final_summary": final_summary
+            
         },
         "evaluation": {
             "scores": grade_scores,
             "average_score": round(average_score, 2),
             "final_grade": final_grade,
-            "judgment_reason": judgment_reason,  # ★★★[추가]
-            "final_summary": final_summary,
+            "judgment_reason": judgment_reason  # ★★★[추가]
         }
     }
 

@@ -575,7 +575,7 @@
                         // 2. 저장된 텍스트를 'AI 보정 결과' 창으로 불러옵니다.
                         ocrResults.value = data.summaryText || '';
                         originalClausesText = data.clausesText || '특약사항 없음'; // 과거 기록에 특약사항이 없을 수 있으므로 기본값 설정
-
+                        finalSummaryText = data.final_summary;
                         // 3. 오른쪽 분석 리포트 영역을 '분석 대기 중' 상태로 초기화합니다.
                         analysisResultView.classList.add('hidden');
                         analysisPlaceholder.classList.remove('hidden');
@@ -682,6 +682,16 @@
                             } else {
                                 ocrResults.value = data.summary_text;
                                 originalClausesText = data.clauses_text;
+
+                                // 추가: 최종 분석 텍스트 처리
+                                finalSummaryText = data.final_summary;
+
+                                // 디버깅 로그 추가
+                               
+
+                                // DOM 요소에 최종 분석 추가
+                
+
                                 appState = 'ocr_done';
                             }
                         })
@@ -718,8 +728,7 @@
                             return response.json();
                         })
                         .then(result => {
-                            console.log('✅ 서버 응답 전체:', result);  // 전체 응답 확인
-                            console.log('🔍 verifications:', result.verifications);  // 내부 구조 확인
+                          
 
                             if (result.error) {
                                 alert('분석 오류: ' + result.error);
@@ -748,7 +757,7 @@
                 const logicResults = verifications.logic_results || {};
                 const clausesHtml = verifications.clauses_html || "분석할 특약사항이 없거나 결과를 생성하지 못했습니다.";
                 const finalRiskGrade = verifications.final_grade || '주의';
-
+                
                 // 2. 핵심 정보 테이블 업데이트
                 const updateCell = (elementId, resultData) => {
                     const cell = document.getElementById(elementId);
@@ -810,8 +819,8 @@
                   setTimeout(() => {
                     const gradeReasonElement = document.getElementById('grade-reason');
                     if (gradeReasonElement) {
-                      console.log("✅ gradeReasonElement 존재 확인됨");
-                      console.log("🧠 judgment_reason 값:", result.evaluation.judgment_reason);
+                    
+                    
                       gradeReasonElement.textContent = result.evaluation.judgment_reason || "";
                     } else {
                       console.warn("⚠️ grade-reason 요소가 DOM에 없음");
@@ -836,7 +845,15 @@
                 }
 
                 clausesContainer.innerHTML = `<h3>특약사항 분석</h3>` + riskCardHeader + `<div class="mt-4">${clausesHtml}</div>`;
-
+                const finalSummaryContainer = document.getElementById('final-summary-box');
+                if (finalSummaryContainer && finalSummaryText) {
+                    finalSummaryContainer.innerHTML = `
+                        <div class="mt-6 p-4 border rounded-lg bg-gray-50 text-gray-800">
+                            <h3 class="font-bold text-lg mb-2">최종 분석</h3>
+                            <p>${finalSummaryText}</p>
+                        </div>
+                    `;
+                }
                 // 4. 분석 결과 영역 노출
                 analysisPlaceholder.classList.add('hidden');
                 analysisResultView.classList.remove('hidden');
@@ -848,6 +865,7 @@
 
         });
     </script>
+    <div id="final-summary-box" class="mt-6"></div>
 </body>
 
 </html>
