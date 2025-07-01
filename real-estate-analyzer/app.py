@@ -54,9 +54,21 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 # EasyOCR 리더 전역 변수로 초기화 (매번 로드하지 않도록)
 # EasyOCR 리더 전역 변수로 초기화 (매번 로드하지 않도록)
 print("EasyOCR 리더를 초기화합니다...")
-home_dir = os.path.expanduser("~")
-reader = easyocr.Reader(['ko'], gpu=False, model_storage_directory=f"{home_dir}/.EasyOCR")
-print("✅ EasyOCR 리더 초기화 완료.")
+# 커스텀 모델을 사용
+# .EasyOCR/model/finetuned.pth 경로에 커스텀 모델이 있어야 합니다.
+# 로컬에서 바닐라 모델로  돌릴 때는
+# reader = easyocr.Reader(['ko', 'en'], gpu=False, model_storage_directory=f"{home_dir}/.EasyOCR")
+# 커스텀 모델 용
+reader = easyocr.Reader(
+    ['ko'],
+    model_storage_directory='.EasyOCR/model',
+    user_network_directory='.EasyOCR/user_network',
+    recog_network='finetuned',
+    download_enabled=False,
+    gpu=False
+)
+
+print("✅ EasyOCR 리더 초기화 완료 (커스텀 모델: finetuned).")
 
 # Gemini 모델 설정
 # Gemini 모델 설정
@@ -281,6 +293,9 @@ def ocr_process():
         # 프롬프트
         full_ocr_text = f"[등기부등본 OCR 결과]\n{reg_text}\n\n[계약서 OCR 결과]\n{con_text}"
         
+        print("✅ OCR 결과 텍스트 생성 완료.")
+        print(full_ocr_text)
+
         # 프롬프트
         prompt = f"""
         당신은 대한민국 부동산 임대차 계약서와 등기부등본을 분석해 **요약 정보**와 **특약사항**을 구분하여 제공하는 AI 전문가입니다.
