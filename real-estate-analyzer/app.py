@@ -11,12 +11,6 @@ from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from datetime import datetime
 
-
-load_dotenv()
-import google.generativeai as genai
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))  # 순서 중요
-
-
 # ★★★[기능 추가] Firebase 서버 연동을 위한 Admin SDK ★★★
 import firebase_admin
 from firebase_admin import credentials, auth, firestore # ★★★[수정] firestore 임포트
@@ -185,16 +179,11 @@ def parse_summary_from_text(text):
     summary = {}
     
     def extract_value(pattern, txt):
-        match = re.search(pattern, txt, re.MULTILINE | re.DOTALL)
+        match = re.search(pattern, txt, re.MULTILINE)
         return match.group(1).strip() if match else None
 
     patterns = {
-<<<<<<< HEAD
         "owner_name": r"현재 소유자:\s*(.*)",
-=======
-        "owner_name": r"소유자[:：]?\s*([가-힣]+)",
-        "lessor_name": r"임대인:\s*(?:성명)?\s*([가-힣]+)", 
->>>>>>> 6644676ab1f248930b880013b34fdea8bdf9faec
         "has_mortgage": r"근저당권:\s*(.*)",
         "mortgage_amount": r"채권최고액:\s*([\d,]+)원",
         "is_mortgage_cleared": r"말소 여부:\s*(.*)",
@@ -208,34 +197,16 @@ def parse_summary_from_text(text):
         "deposit": r"보증금:\s*([\d,]+)원",
         "monthly_rent": r"월세:\s*([\d,]+)원",
         "maintenance_fee": r"관리비:\s*([\d,]+)원",
-<<<<<<< HEAD
         "included_fees": r"관리비 포함항목:\s*\[(.*)\]",
         "lessor_name": r"임대인:\s*(?!계좌정보)(.*)",
         "lessee_name": r"임차인:\s*(.*)",
         "lessor_account": r"임대인 계좌정보:\s*(.*)",
         "lessee_account": r"임차인 계좌정보:\s*(.*)",
         "building_type": r"건물유형:\s*(.*)" #[추가] 
-=======
-        "included_fees": r"관리비 포함항목:\s*(.*)",  # [] 괄호 없이도 대응
-        "lessee_name": r"임차인:\s*(?:성명)?\s*([가-힣]+)",
-        "lessor_account": r"계좌정보:\s*([^\n]*)"
->>>>>>> 6644676ab1f248930b880013b34fdea8bdf9faec
     }
 
     for key, pattern in patterns.items():
         summary[key] = extract_value(pattern, text)
-
-    # 계약서 조항(특약사항 등) robust 추출 로직으로 대체
-    clause_block_match = re.search(r"(특약사항\s*[\n:：\-]*)((.|\n)+?)(?:\n\n|\Z)", text, re.IGNORECASE)
-    if clause_block_match:
-        clause_text = clause_block_match.group(2).strip()
-        summary["clauses_raw"] = clause_text
-        summary["clauses"] = clause_text
-        summary["clauses_cleaned"] = clause_text.strip()
-    else:
-        summary["clauses_raw"] = "특약사항 없음"
-        summary["clauses"] = "특약사항 없음"
-
 
     # 데이터 후처리 (문자열 -> 숫자/bool/리스트 등)
     if summary.get("has_mortgage"):
@@ -254,8 +225,6 @@ def parse_summary_from_text(text):
             summary["lease_period"] = (parts[0].strip(), parts[1].strip())
     if summary.get("included_fees"):
         summary["included_fees"] = [fee.strip() for fee in summary["included_fees"].split(',')]
-    print("clauses :")
-    print(summary["clauses"])
     
     # === 특약사항(clauses) 블록 추출 ===
     clause_block_match = re.search(r"(특약사항)\s*[:-]?\s*([\s\S]+)", text)
@@ -471,12 +440,7 @@ def kakao_login():
         custom_token = auth.create_custom_token(uid)
         print("✅ Firebase 커스텀 토큰 생성 성공.")
 
-        # Ensure custom_token is returned as a string, not bytes
-        if isinstance(custom_token, bytes):
-            firebase_token = custom_token.decode()
-        else:
-            firebase_token = custom_token
-        return jsonify({'firebase_token': firebase_token})
+        return jsonify({'firebase_token': custom_token.decode('utf-8')})
 
     except requests.exceptions.HTTPError as e:
         print(f"🚨 카카오 토큰 인증 실패: {e.response.text}")
@@ -485,129 +449,6 @@ def kakao_login():
         print(f"🚨 로그인 처리 중 심각한 오류 발생: {e}")
         return jsonify({'error': f'서버 내부 오류 발생: {e}'}), 500
 
-<<<<<<< HEAD
-=======
-@app.route('/ocr', methods=['POST'])
-def ocr_process():
-    if 'registerFile' not in request.files or 'contractFile' not in request.files:
-        return jsonify({'error': '두 개의 파일(등기부등본, 계약서)이 모두 필요합니다.'}), 400
-
-    register_file = request.files['registerFile']
-    contract_file = request.files['contractFile']
-    
-    register_filename = secure_filename(register_file.filename)
-    contract_filename = secure_filename(contract_file.filename)
-    register_path = os.path.join(app.config['UPLOAD_FOLDER'], register_filename)
-    contract_path = os.path.join(app.config['UPLOAD_FOLDER'], contract_filename)
-    register_file.save(register_path)
-    contract_file.save(contract_path)
-
-    try:
-        enhanced_reg_path, _ = enhance_image_for_ocr(register_path, f"enhanced_{register_filename}")
-        if not enhanced_reg_path: raise Exception("등기부등본 이미지 처리 실패")
-        reg_results = reader.readtext(enhanced_reg_path)
-        reg_text = "\n".join([res[1] for res in reg_results])
-
-        enhanced_con_path, _ = enhance_image_for_ocr(contract_path, f"enhanced_{contract_filename}")
-        if not enhanced_con_path: raise Exception("계약서 이미지 처리 실패")
-        con_results = reader.readtext(enhanced_con_path)
-        con_text = "\n".join([res[1] for res in con_results])
-        
-        if not model: return jsonify({'error': 'Gemini API가 초기화되지 않았습니다.'}), 500
-            
-        prompt = f"""
-        당신은 대한민국 부동산 임대차 계약서와 등기부등본을 분석해 **요약 정보**와 **특약사항**을 구분하여 제공하는 AI 전문가입니다.
-        아래 OCR 텍스트를 바탕으로, 지정된 형식에 맞춰 **요약 정보**와 **특약사항**을 정확히 추출해주세요.
-        
-        요약 형식:
-        --- 등기부등본 요약 ---
-        - 등기부등본 주소: (도로명 또는 지번 주소)
-        - 현재 소유자: OOO
-        - 근저당권: [설정 있음 / 없음]
-        - 채권최고액: XX,XXX,XXX원
-        - 말소 여부: [말소됨 / 유지]
-        - 기타 등기사항: (간략 요약)
-
-        --- 계약서 요약 ---
-        계약 기본정보
-        - 계약일: YYYY-MM-DD
-        - 임대차 기간: YYYY-MM-DD ~ YYYY-MM-DD
-        - 명도일: YYYY-MM-DD
-        - 계약주소: (도로명 또는 지번 주소)
-
-        금전 조건
-        - 보증금: X,XXX,XXX원
-        - 월세: XX,XXX원
-        - 관리비: XX,XXX원
-        - 관리비 포함항목: [인터넷, 전기, 수도 등]
-
-        임차인/임대인 정보
-        - 임대인: 성명 
-        - 임차인: 성명 
-        - 임대인 계좌정보: 은행명 / 계좌번호
-        - 비상 연락처: 성명 / 전화번호
-
-        특약사항
-        - (모든 특약 조항을 그대로 나열, 없으면 '특약사항 없음'으로 표기)
-
-        --- OCR 텍스트 ---
-        등기부등본 텍스트: {reg_text}
-        계약서 텍스트: {con_text}
-        ---
-        """
-        response = model.generate_content(prompt)
-        full_corrected_text = response.text
-
-        # ★★★ [구조 변경] Gemini가 생성한 텍스트를 '요약'과 '특약사항'으로 분리 (개선)
-        summary_part = ""
-        clauses_part = "특약사항 없음"  # 기본값
-        print("🧾 Gemini full_corrected_text:\n", full_corrected_text)
-        split_keyword = "특약사항"
-        if split_keyword in full_corrected_text:
-            parts = full_corrected_text.split(split_keyword, 1)
-            summary_part = parts[0].strip()
-            clauses_part = parts[1].strip()  # '특약사항' 자체는 제외하고 조항만 추출
-        else:
-            summary_part = full_corrected_text.strip()
-            clauses_part = "특약사항 없음"
-        # 분리된 텍스트를 각각 JSON으로 반환
-        return jsonify({
-            'summary_text': summary_part,
-            'clauses_text': clauses_part
-        })
-    
-    except Exception as e:
-        print(f"OCR 처리 중 심각한 오류 발생: {e}")
-        return jsonify({'error': f'서버 내부 오류 발생: {e}'}), 500
-    
-    finally:
-        if os.path.exists(register_path): os.remove(register_path)
-        if os.path.exists(contract_path): os.remove(contract_path)
-        if 'enhanced_reg_path' in locals() and os.path.exists(enhanced_reg_path): os.remove(enhanced_reg_path)
-        if 'enhanced_con_path' in locals() and os.path.exists(enhanced_con_path): os.remove(enhanced_con_path)
-
-def evaluate_deposit_risk(deposit):
-    if deposit is None:
-        return "확인 불가"
-
-    try:
-        average_ratio = 0.682
-        estimated_market_price = deposit / average_ratio
-        ratio = deposit / estimated_market_price
-
-        if ratio >= 0.9:
-            return "위험"
-        elif ratio >= 0.75:
-            return "다소 높음"
-        else:
-            return "적정"
-    except Exception:
-        return "확인 불가"
-    
-# ======================================================================
-# ★★★ [구조 변경] 모든 분석을 처리하는 새로운 단일 종합 엔드포인트 ★★★
-# ======================================================================
->>>>>>> 6644676ab1f248930b880013b34fdea8bdf9faec
 @app.route('/process-analysis', methods=['POST'])
 
 def process_analysis():
@@ -615,58 +456,24 @@ def process_analysis():
     summary_text = data.get('summary_text')
     clauses_text = data.get('clauses_text')
     uid = data.get('uid') # ★★★[기능 추가] 프론트로부터 UID 수신
-<<<<<<< HEAD
 
     # === [최종 분석] 블록 추출 ===
     import re
     final_summary = ""
     if summary_text:
-        # Extract final summary block
-        final_summary_match = re.search(r"\[최종 분석\](.*?)(?=\n---|\Z)", summary_text, re.DOTALL)
+        # [최종 분석] 추출
+        final_summary_match = re.search(r"\[최종 분석\](.*?)(?=\n\[|$)", summary_text, re.DOTALL)
         final_summary = final_summary_match.group(1).strip() if final_summary_match else ""
+        print("[디버깅] final_summary 값:", final_summary)
 
-=======
-    
->>>>>>> 6644676ab1f248930b880013b34fdea8bdf9faec
     if not summary_text:
         return jsonify({'error': '분석할 요약 내용이 없습니다.'}), 400
     if not uid:
         return jsonify({'error': '사용자 정보(UID)가 없습니다. 다시 로그인해주세요.'}), 401
-    print("💬 summary_text:\n", summary_text)
 
     # 1. 백엔드에서 텍스트 파싱
     parsed_data = parse_summary_from_text(summary_text)
-<<<<<<< HEAD
  
-=======
-    # 프론트에서 받은 clauses_text가 있는 경우 우선 사용
-    # (단, '특약사항 없음/없습니다/없다' 등은 무시하고 summary_text에서 추출)
-    if clauses_text and not re.search(r"^특약사항\s*(없음|없습니다|없다)$", clauses_text.strip()):
-        pass  # 그대로 사용
-    elif parsed_data.get("clauses_cleaned") and not re.search(r"^특약사항\s*(없음|없습니다|없다)$", parsed_data["clauses_cleaned"].strip()):
-        clauses_text = parsed_data["clauses_cleaned"]
-    else:
-        clauses_text = "특약사항 없음"
-    print("📝 clauses_text (from summary):\n", clauses_text)
-    print("clauses ========== ", clauses_text)
-    
-    def normalize_name(name):
-        if not name:
-            return ""
-        return name.replace(" ", "").strip()
-
-    owner_name = normalize_name(parsed_data.get("소유자"))
-    landlord_name = normalize_name(parsed_data.get("임대인"))
-
-    if owner_name and landlord_name:
-        if owner_name in landlord_name or landlord_name in owner_name:
-            identity_result = "일치"
-        else:
-            identity_result = "불일치"
-    else:
-            identity_result = "확인 불가 (정보 부족)"
-        
->>>>>>> 6644676ab1f248930b880013b34fdea8bdf9faec
     # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
     # ★★★ 요청하신 모든 변수의 개별 로그를 확인하는 부분 ★★★
     # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
@@ -809,19 +616,17 @@ def process_analysis():
 
     # 3. 특약사항 분석 (Gemini API 호출)
     clauses_analysis_result = "분석할 특약사항 없음"
-    # 변경: 특약사항이 명확히 없음(없음/없습니다/없다)일 때만 분석을 건너뜁니다.
-    if clauses_text and not re.search(r"^특약사항\s*(없음|없습니다|없다)$", clauses_text.strip()):
+    if clauses_text and "특약사항 없음" not in clauses_text:
         if not model: return jsonify({'error': 'Gemini API가 초기화되지 않았습니다.'}), 500
         try:
             # ★★★[핵심 수정] 특약사항 위험도 분석을 위한 전용 프롬프트: 카드 스타일 HTML 강제 프롬프트로 변경 ★★★
             prompt = f"""
 당신은 대한민국 부동산 계약의 법률 전문가입니다. 아래의 '특약사항' 조항들을 임차인의 입장에서 분석하세요.
 
-[특약사항 내용]
-{clauses_text}
-[/특약사항 내용]
+            [특약사항 내용]
+            {clauses_text}
+            [/특약사항 내용]
 
-<<<<<<< HEAD
             [분석 지침]
             1. 각 조항을 아래와 같은 카드 형태 HTML로 분석하세요.
 
@@ -840,34 +645,6 @@ def process_analysis():
             4. <div class="risk-card">로 시작해서, 내부에 title, badge, desc를 포함하는 구조로만 출력하세요.
 
             📌 중요: 절대 표 형태나 리스트 형태로 출력하지 마세요. 반드시
-=======
-[분석 지침]
-1. **위험 조항 식별**: 임차인에게 불리하거나 분쟁 위험이 있는 조항을 명확하게 찾아내세요.
-2. **위험도 평가**: 각 조항마다 다음 중 하나로 위험도를 분류하세요:
-   - 위험도: 높음 — 임차인에게 재산상 손해 또는 계약 해지 가능성이 명확히 존재하는 경우
-   - 위험도: 중간 — 해석에 따라 불리하게 적용될 수 있으나 일정 조건 하에 대응 가능한 경우
-   - 위험도: 낮음 — 일반적이지만 주의가 필요한 조항일 경우
-3. **최종 요약**: "### 최종 요약" 제목 아래, 위험도가 '높음'인 조항이 있다면 최대 2~3개를 언급하고 전체 위험 수준을 간결하게 정리해주세요. 과도한 판단은 피하고, 조항 수와 실제 위험성을 바탕으로 신중히 평가해주세요.
-4. 각 조항을 다음 구조로 시각적으로 구성된 **카드 형식**으로 출력하세요:
-
-- 번호: 각 조항 앞에 `<span class="risk-number">1.</span>` 형식으로 강조된 숫자를 명시하세요.
-- 조항 내용: `<b>조항 내용</b>`
-- 위험도: 다음 형식 중 하나를 사용하세요:
-  - `<div class="risk-badge risk-high">🚨 위험</div>`
-  - `<div class="risk-badge risk-medium">⚠️ 주의</div>`
-  - `<div class="risk-badge risk-low">✔️ 낮음</div>`
-- 설명: `<div class="risk-desc">...</div>`
-5. 주관적인 추측, 과장된 판단, 또는 명확한 근거 없이 '위험' 또는 '주의' 등급을 부여하지 마세요. 계약서에 명확하게 불리한 조건이 기재된 경우에만 판단해야 하며, 불확실한 조항은 '주의' 또는 '낮음'으로 분류하는 것이 원칙입니다.
-
-예시:
-<div class="risk-card">
-  <div class="risk-title"><b><span class="risk-number">1.</span> 조항 내용</b></div>
-  <div class="risk-badge risk-high">🚨 위험</div>
-  <div class="risk-desc">계약 위반 시 임대인에게 과도한 권한이 주어져 임차인에게 불리할 수 있음</div>
-</div>
-
-📌 **중요**: 분석 결과에는 "대한민국 부동산 계약 특약사항 분석" 또는 "(임차인 입장)" 같은 제목, 인사말, 서론, 불필요한 포맷은 절대 포함하지 마세요. **오직 분석 결과 카드 형식만 출력하세요.**
->>>>>>> 6644676ab1f248930b880013b34fdea8bdf9faec
 """
             response = model.generate_content(prompt)
             clauses_analysis_result = response.text
@@ -878,7 +655,6 @@ def process_analysis():
             print(f"특약사항 분석 중 오류 발생: {e}")
             clauses_analysis_result = "특약사항 분석 중 오류가 발생했습니다."
 
-<<<<<<< HEAD
     # 🔢 [수정] 등급별 점수 설정 및 평균 계산
     print("\n--- [최종 등급 산출] 시작 ---")
     # 1. grade_list를 모든 핵심 검증 및 특약 분석에서 추출된 등급 문자열 리스트로 구성
@@ -1053,10 +829,6 @@ def process_analysis():
         risk_high_count = 0
         risk_medium_count = 0
         risk_low_count = 0
-=======
-    # 4. 시세 검증 (외부 API 호출) - 현재는 Mock(모의) 데이터로 구현
-    price_verification = ""
->>>>>>> 6644676ab1f248930b880013b34fdea8bdf9faec
 
     final_result = {
         "verifications": {
@@ -1081,22 +853,11 @@ def process_analysis():
             "scores": grade_scores,
             "average_score": round(average_score, 2),
             "final_grade": final_grade,
-            "judgment_reason": judgment_reason  # ★★★[추가]
+            "judgment_reason": judgment_reason,  # ★★★[추가]
+            "final_summary": final_summary,
         }
     }
-<<<<<<< HEAD
 
-=======
-    # 종합 결과 저장
-    analysis_result = {
-        "verifications": {
-        "identity": identity_verification,
-        "price": price_verification,
-        "clauses": clauses_analysis_result
-    },
-    "userInput": parsed_data
-}
->>>>>>> 6644676ab1f248930b880013b34fdea8bdf9faec
     # ★★★[기능 추가] 분석 결과를 Firestore에 저장 ★★★
     try:
         analysis_data_to_save = {
