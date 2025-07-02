@@ -1,0 +1,116 @@
+body {
+    font-family: 'Noto Sans KR', 'Inter', sans-serif;
+}
+
+.file-drop-zone {
+    border: 2px dashed #d1d5db;
+    transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+}
+
+.file-drop-zone.dragover {
+    background-color: #f3f4f6;
+    border-color: #60a5fa;
+}
+
+.preview-img-clickable {
+    cursor: zoom-in;
+}
+
+@keyframes highlight {
+    0% {
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+    }
+}
+
+.highlight-animation {
+    animation: highlight 1.5s ease-out;
+}
+
+/* 분석 결과 가독성을 위한 스타일 */
+.analysis-section h3 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-top: 2rem;
+    border-bottom: 2px solid #e5e7eb;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.analysis-section table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 1rem;
+}
+
+.analysis-section th,
+.analysis-section td {
+    border: 1px solid #e5e7eb;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    vertical-align: top;
+    font-size: 0.9rem;
+}
+
+.analysis-section th {
+    background-color: #f9fafb;
+    font-weight: 600;
+    width: 35%;
+}
+
+.analysis-section p {
+    margin-top: 1rem;
+    line-height: 1.75;
+}
+
+.verification-value { font-weight: 600; }
+.verification-safe { color: #16a34a; }
+.verification-warn { color: #d97706; }
+.verification-danger { color: #dc2626; }
+
+/* 특약사항 분석 카드 UI 스타일 */
+.risk-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    background-color: #ffffff;
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.07), 0 1px 2px -1px rgb(0 0 0 / 0.07);
+}
+.risk-card .risk-title {
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    font-size: 1rem;
+    color: #374151;
+}
+.risk-card .risk-badge {
+    margin-bottom: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+}
+.risk-card .risk-desc {
+    font-size: 0.875rem;
+    color: #4b5563;
+    line-height: 1.6;
+}
+
+/* 로그인 UI를 위한 스타일 */
+#main-content.blurred {
+    filter: blur(5px);
+    pointer-events: none;
+    user-select: none;
+}
+
+/* ★★★[추가] 최종 코멘트 카드 스타일 ★★★ */
+.final-comment-card {
+    margin-top: 1.5rem;
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    background-color: #f3f4f6; /* 회색 계열 배경 */
+    border: 1px solid #d1d5db; /* 회색 계열 테두리 */
+} 
