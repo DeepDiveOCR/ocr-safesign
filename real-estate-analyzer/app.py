@@ -187,18 +187,33 @@ def enhance_image_for_ocr(image_path, output_path="enhanced_image.png"):
 # ======================================================================
 # ★★★ [구조 변경] 백엔드에서 텍스트를 파싱하는 핵심 함수 ★★★
 # ======================================================================
+
+
 def parse_summary_from_text(text):
-    """입력된 요약 텍스트 전체를 파싱하여 딕셔너리로 반환합니다."""
+    """
+    입력된 요약 텍스트 전체를 파싱하여 딕셔너리로 반환합니다. (최종 수정 버전)
+    """
     summary = {}
-    
+
+    # 1. (핵심) "계약내용 및"을 기준으로 파싱할 텍스트를 미리 잘라냅니다.
+    #    이후 모든 파싱은 잘라낸 텍스트 안에서만 이루어지므로 안전합니다.
+    parsing_text = text
+    markers = ["특약사항", "계약내용 및"]
+    for marker in markers:
+        cutoff_index = text.find(marker)
+        if cutoff_index != -1:
+            parsing_text = text[:cutoff_index]
+            break
+
     def extract_value(pattern, txt):
         match = re.search(pattern, txt, re.MULTILINE)
         return match.group(1).strip() if match else None
 
+    # 2. 유연한 정규식 패턴을 사용합니다.
     patterns = {
         "owner_name": r"현재 소유자:\s*(.*)",
         "has_mortgage": r"근저당권:\s*(.*)",
-        "mortgage_amount": r"채권최고액:\s*([\d,]+)원",
+        "mortgage_amount": r"채권최고액:\s*(.*)",
         "is_mortgage_cleared": r"말소 여부:\s*(.*)",
         "other_register_info": r"기타 등기사항:\s*(.*)",
         "contract_date": r"계약일:\s*(\d{4}-\d{2}-\d{2})",
@@ -206,55 +221,66 @@ def parse_summary_from_text(text):
         "handover_date": r"명도일:\s*(\d{4}-\d{2}-\d{2})",
         "contract_addr": r"계약주소:\s*(.*)",
         "register_addr": r"등기부등본 주소:\s*(.*)",
-        "register_addr": r"등기부등본 주소:\s*(.*)",
-        "deposit": r"보증금:\s*([\d,]+)원",
-        "monthly_rent": r"월세:\s*([\d,]+)원",
-        "maintenance_fee": r"관리비:\s*([\d,]+)원",
-        "included_fees": r"관리비 포함항목:\s*\[(.*)\]",
+        "deposit": r"보증금:\s*(.*)",
+        "monthly_rent": r"월세:\s*(.*)",
+        "maintenance_fee": r"관리비:\s*(.*)",
+        "included_fees": r"관리비 포함항목:\s*(.*)",
         "lessor_name": r"임대인:\s*(?!계좌정보)(.*)",
         "lessee_name": r"임차인:\s*(.*)",
         "lessor_account": r"임대인 계좌정보:\s*(.*)",
         "lessee_account": r"임차인 계좌정보:\s*(.*)",
-        "building_type": r"건물유형:\s*(.*)" #[추가] 
+        "building_type": r"건물유형:\s*(.*)"
     }
 
+    # 잘라낸 'parsing_text'를 대상으로만 값을 추출합니다.
     for key, pattern in patterns.items():
-        summary[key] = extract_value(pattern, text)
+        summary[key] = extract_value(pattern, parsing_text)
 
-    # 데이터 후처리 (문자열 -> 숫자/bool/리스트 등)
+    # 3. 강화된 후처리 로직으로 데이터를 정확하게 정리합니다.
     if summary.get("has_mortgage"):
-        summary["has_mortgage"] = "있음" in summary["has_mortgage"]
+        summary["has_mortgage"] = "있음" in summary["has_mortgage"] and "없음" not in summary["has_mortgage"]
     if summary.get("is_mortgage_cleared"):
-        summary["is_mortgage_cleared"] = "말소됨" in summary["is_mortgage_cleared"]
+        summary["is_mortgage_cleared"] = "말소" in summary["is_mortgage_cleared"]
+
+    # 금액 관련 필드 처리 (문자열에서 숫자만 정확히 추출)
     for key in ["mortgage_amount", "deposit", "monthly_rent", "maintenance_fee"]:
-        if summary.get(key):
-            try:
-                summary[key] = int(summary[key].replace(',', ''))
-            except (ValueError, TypeError):
-                summary[key] = 0 # 숫자로 변환 실패 시 0으로 처리
+        value_str = summary.get(key)
+        if value_str:
+            numeric_match = re.search(r'([\d,]+)', value_str)
+            if numeric_match:
+                try:
+                    summary[key] = int(numeric_match.group(1).replace(',', ''))
+                except (ValueError, TypeError):
+                    summary[key] = 0
+            else: # 숫자 부분이 아예 없는 경우 (예: "정보 없음")
+                summary[key] = 0
+        else: # 키 자체가 없는 경우
+             summary[key] = 0
+
     if summary.get("lease_period"):
         parts = summary["lease_period"].split('~')
         if len(parts) == 2:
             summary["lease_period"] = (parts[0].strip(), parts[1].strip())
+            
     if summary.get("included_fees"):
-        summary["included_fees"] = [fee.strip() for fee in summary["included_fees"].split(',')]
-    
-    # === 특약사항(clauses) 블록 추출 ===
-    clause_block_match = re.search(r"(특약사항)\s*[:-]?\s*([\s\S]+)", text)
-    if clause_block_match:
-        clause_text = clause_block_match.group(2).strip()
-        if len(clause_text) > 5:  # 실질적인 내용 있는 경우에만 반영
-            summary["clauses_raw"] = clause_text
-            summary["clauses"] = clause_text
-            summary["clauses_cleaned"] = clause_text.strip()
+        # "정보 없음" 등의 텍스트를 고려하여 처리
+        if '정보' in summary["included_fees"] or not summary["included_fees"]:
+            summary["included_fees"] = []
         else:
-            summary["clauses_raw"] = "특약사항 없음"
-            summary["clauses"] = "특약사항 없음"
-    else:
-        summary["clauses_raw"] = "특약사항 없음"
-        summary["clauses"] = "특약사항 없음"
-    return summary
+            summary["included_fees"] = [fee.strip() for fee in summary["included_fees"].split(',')]
 
+    # 특약사항 부분은 원본 텍스트 전체에서 다시 찾아 저장합니다.
+    clause_block_match = re.search(r"(특약사항|계약내용 및)[\s\S]*", text)
+    if clause_block_match:
+        summary["clauses"] = clause_block_match.group(0).strip()
+    else:
+        summary["clauses"] = "특약사항 없음"
+        
+    # 기존 코드와의 호환성을 위해 'clauses_raw', 'clauses_cleaned' 유지
+    summary["clauses_raw"] = summary["clauses"]
+    summary["clauses_cleaned"] = summary["clauses"]
+        
+    return summary
 # ======================================================================
 # 2. Flask 라우트(경로) 정의
 # ======================================================================
@@ -302,61 +328,63 @@ def ocr_process():
         con_text = "\n".join([res[1] for res in con_results])
         
         if not model: return jsonify({'error': 'Gemini API가 초기화되지 않았습니다.'}), 500
-            
-        full_ocr_text = f"[등기부등본 OCR 결과]\n{reg_text}\n\n[계약서 OCR 결과]\n{con_text}"
 
         # 프롬프트
         prompt = f"""
-        당신은 대한민국 부동산 임대차 계약서와 등기부등본을 분석해 **요약 정보**와 **특약사항**을 구분하여 제공하는 AI 전문가입니다.
-        아래 OCR 텍스트를 바탕으로, 지정된 형식에 맞춰 **요약 정보**와 **특약사항**을 정확히 추출해주세요.
+        당신은 대한민국 부동산 임대차 계약서와 등기부등본을 분석해 **요약 정보**와 **계약내용 및 특약사항**을 구분하여 제공하는 AI 전문가입니다.
+        아래 OCR 텍스트를 바탕으로, 지정된 형식에 맞춰 **요약 정보**와 **계약내용 및 특약사항**을 정확히 추출해주세요.
         등기부등본 주소는 도로명 또는 지번 주소만 포함하고 동은 제외합니다.
         예를 들어 서울특별시 서초구 서초대로 46길 60, 101동 201호(서초동, 서초아파트) 일 경우 서울특별시 서초구 서초대로 46길 60 로 표기합니다.
-
+        주어진 형식에서 정보를 추가하거나 ()로 묶어서 추정하지 마세요.
+        만약 주소가 서울특별시 서초구 서초대로 46길 60 와 같이 온전한 형식이 아닌, 진해구 이동 649-12 와 같은 축약형일 경우 정규화 시켜주세요
+        
         요약 형식:
+
         --- 등기부등본 요약 ---
-        - 등기부등본 주소: (도로명 또는 지번 주소)
+        - 등기부등본 주소: xxx도 xxx시 xxx구 xx동 xx-xx (도로명 또는 지번 주소만 동과 호수는 제외)
         - 현재 소유자: OOO
         - 근저당권: [설정 있음 / 없음]
         - 채권최고액: XX,XXX,XXX원
         - 말소 여부: [말소됨 / 유지]
-        - 기타 등기사항: (간략 요약)
 
         --- 계약서 요약 ---
         계약 기본정보
+        - 계약주소: xxx도 xxx시 xxx구 xx동 xx-xx (도로명 또는 지번 주소만 동과 호수는 제외)
         - 계약일: YYYY-MM-DD
         - 임대차 기간: YYYY-MM-DD ~ YYYY-MM-DD
         - 명도일: YYYY-MM-DD
-        - 계약주소: (도로명 또는 지번 주소)
+        
 
         금전 조건
-        - 보증금: X,XXX,XXX원
-        - 월세: XX,XXX원
-        - 관리비: XX,XXX원
+        - 보증금: X,XXX,XXX원 ([한글 보증금])
+        - 월세: XX,XXX원 ([한글 월세])
+        - 관리비: XX,XXX원 ([한글 관리비])
         - 관리비 포함항목: [인터넷, 전기, 수도 등]
 
         임차인/임대인 정보
-        - 임대인: 성명 
-        - 임차인: 성명 
+        - 임대인: 성명
         - 임대인 계좌정보: 은행명 / 계좌번호
-        - 비상 연락처: 성명 / 전화번호
+        - 임차인: 성명 
 
-        특약사항
-        - (모든 특약 조항을 그대로 나열, 없으면 '특약사항 없음'으로 표기)
-
+        계약내용 및 특약사항
+        - 계약내용
+        제 1조: [계약내용]
+        제 2조: [계약내용]
+        등등...
         --- OCR 텍스트 ---
         등기부등본 텍스트: {reg_text}
         계약서 텍스트: {con_text}
         ---
-
-        [최종 분석]
-        - 아래 문단은 최종 분석을 포함하는 매우 중요한 항목입니다.
-        - 이 항목은 절대 생략하지 말고 반드시 작성해야 합니다.
-        - 누락되면 전체 응답이 무효 처리됩니다.
-        - 아래의 지시를 반드시 따르세요.
-        - 점수 기준에 따라 '위험', '주의', '안전' 중 하나로 최종 등급을 판단하세요.
-        - 등급 판단 사유를 자연스럽고 신뢰도 있게 설명하는 문장으로 서술해 주세요.
-        - 최종 분석 항목으로, 전체 계약서를 종합적으로 평가한 결과를 서술해 주세요.
         """
+
+        # [최종 분석]
+        # - 아래 문단은 최종 분석을 포함하는 매우 중요한 항목입니다.
+        # - 이 항목은 절대 생략하지 말고 반드시 작성해야 합니다.
+        # - 누락되면 전체 응답이 무효 처리됩니다.
+        # - 아래의 지시를 반드시 따르세요.
+        # - 점수 기준에 따라 '위험', '주의', '안전' 중 하나로 최종 등급을 판단하세요.
+        # - 등급 판단 사유를 자연스럽고 신뢰도 있게 설명하는 문장으로 서술해 주세요.
+        # - 최종 분석 항목으로, 전체 계약서를 종합적으로 평가한 결과를 서술해 주세요.
 
         response = model.generate_content(prompt)
         # 🔍 Gemini 응답 전체 확인
@@ -364,7 +392,7 @@ def ocr_process():
         full_corrected_text = response.text
 
         # ★★★ [구조 변경] Gemini가 생성한 텍스트를 '요약'과 '특약사항'과 '최종 분석 '으로 분리
-        split_keyword = "특약사항"
+        split_keyword = "계약내용 및 특약사항"
         if split_keyword in full_corrected_text:
             parts = full_corrected_text.split(split_keyword, 1)
             summary_part = parts[0].strip()
@@ -620,28 +648,28 @@ def process_analysis():
         if not model: return jsonify({'error': 'Gemini API가 초기화되지 않았습니다.'}), 500
         try:
             prompt = f"""
-당신은 대한민국 부동산 계약의 법률 전문가입니다.
-아래 '특약사항 텍스트'를 임차인의 입장에서 분석하되, 위험 판단은 객관적인 사실과 조문 해석에 기반하여 균형 잡힌 어조로 작성해주세요. 과도하게 높은 위험 등급 표시는 자제하고, 실제로 분쟁 가능성이 있는 부분만 명확하게 지적해 주세요.
+            당신은 대한민국 부동산 계약의 법률 전문가입니다.
+            아래 '특약사항 텍스트'를 임차인의 입장에서 분석하되, 위험 판단은 객관적인 사실과 조문 해석에 기반하여 균형 잡힌 어조로 작성해주세요. 과도하게 높은 위험 등급 표시는 자제하고, 실제로 분쟁 가능성이 있는 부분만 명확하게 지적해 주세요.
 
-1. 특약사항 위험 분석 (HTML 카드)
-- 제공된 텍스트의 각 조항을 분석하여, 결과를 아래 예시 같은 HTML 카드 형식으로만 출력합니다.
-- 카드 외 다른 텍스트(인사말, 서론, 요약)는 포함하지 마세요.
-- 위험도 클래스는 `risk-high`(위험), `risk-medium`(주의), `risk-low`(낮음) 세 가지를 사용합니다.
-[HTML 카드 예시]
-<div class="risk-card">
-  <div class="risk-title"><b>1.</b> 조항 내용...</div>
-  <div class="risk-badge risk-high">🚨 위험</div>
-  <div class="risk-desc">위험 설명 및 조치 제안...</div>
-</div>
+            1. 특약사항 위험 분석 (HTML 카드)
+            - 제공된 텍스트의 각 조항을 분석하여, 결과를 아래 예시 같은 HTML 카드 형식으로만 출력합니다.
+            - 카드 외 다른 텍스트(인사말, 서론, 요약)는 포함하지 마세요.
+            - 위험도 클래스는 `risk-high`(위험), `risk-medium`(주의), `risk-low`(낮음) 세 가지를 사용합니다.
+            [HTML 카드 예시]
+            <div class="risk-card">
+            <div class="risk-title"><b>1.</b> 조항 내용...</div>
+            <div class="risk-badge risk-high">🚨 위험</div>
+            <div class="risk-desc">위험 설명 및 조치 제안...</div>
+            </div>
 
-2. 최종 코멘트 (마무리 멘트)
-- 분석 내용을 바탕으로 객관적이고 간결한 어투로 2~3문장 의견을 작성하세요.
-- 과도한 경고를 피하고, 실제로 조치가 필요한 부분만 강조해 주세요.
-- 반드시 `### 최종 코멘트` 제목으로 시작합니다.
+            2. 최종 코멘트 (마무리 멘트)
+            - 분석 내용을 바탕으로 객관적이고 간결한 어투로 2~3문장 의견을 작성하세요.
+            - 과도한 경고를 피하고, 실제로 조치가 필요한 부분만 강조해 주세요.
+            - 반드시 `### 최종 코멘트` 제목으로 시작합니다.
 
-[분석할 특약사항 텍스트]
-{clauses_text}
-"""
+            [분석할 특약사항 텍스트]
+            {clauses_text}
+            """
             response = model.generate_content(prompt)
             clauses_analysis_result = response.text
             # ★★★[추가] Gemini 응답이 ```html ~ ``` 마크다운 코드블럭으로 감싸져 있을 경우 제거
@@ -890,5 +918,5 @@ def process_analysis():
 if __name__ == '__main__':
     # host='0.0.0.0'는 외부에서 접속 가능하게 함
     # debug=True는 개발 중에만 사용하고, 실제 배포 시에는 False로 변경하거나 제거합니다.
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)
     

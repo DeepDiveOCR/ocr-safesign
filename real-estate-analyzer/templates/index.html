@@ -61,6 +61,7 @@
             margin-top: 2rem;
             border-bottom: 2px solid #e5e7eb;
             padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
         }
 
         .analysis-section table {
@@ -89,29 +90,19 @@
             line-height: 1.75;
         }
 
-        .verification-value {
-            font-weight: 600;
-        }
+        .verification-value { font-weight: 600; }
+        .verification-safe { color: #16a34a; }
+        .verification-warn { color: #d97706; }
+        .verification-danger { color: #dc2626; }
 
-        .verification-safe {
-            color: #16a34a;
-        }
-
-        .verification-warn {
-            color: #d97706;
-        }
-
-        .verification-danger {
-            color: #dc2626;
-        }
-
-        /* ★★★[추가] 특약사항 분석 카드 UI 스타일 ★★★ */
+        /* 특약사항 분석 카드 UI 스타일 */
         .risk-card {
             border: 1px solid #e5e7eb;
             border-radius: 0.75rem;
-            padding: 1rem;
+            padding: 1.25rem;
             margin-bottom: 1rem;
             background-color: #ffffff;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.07), 0 1px 2px -1px rgb(0 0 0 / 0.07);
         }
         .risk-card .risk-title {
             font-weight: 600;
@@ -130,11 +121,20 @@
             line-height: 1.6;
         }
 
-        /* ★★★[추가] 로그인 UI를 위한 스타일 ★★★ */
+        /* 로그인 UI를 위한 스타일 */
         #main-content.blurred {
             filter: blur(5px);
             pointer-events: none;
             user-select: none;
+        }
+        
+        /* ★★★[추가] 최종 코멘트 카드 스타일 ★★★ */
+        .final-comment-card {
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            background-color: #f3f4f6; /* 회색 계열 배경 */
+            border: 1px solid #d1d5db; /* 회색 계열 테두리 */
         }
     </style>
 </head>
@@ -159,10 +159,11 @@
         <header class="mb-8 text-center">
             <h1 class="text-3xl sm:text-4xl font-bold text-gray-900">AI 부동산 계약 분석 시스템</h1>
             <p class="mt-2 text-md text-gray-600">임대차 계약서와 등기부등본을 업로드하여 전세사기 위험도를 탐지하세요.</p>
+            <!-- ★★★[삭제] 법적 고지 문구는 하단으로 이동했습니다. ★★★ -->
         </header>
 
-        <div id="login-overlay" class="absolute inset-0 bg-gray-900 bg-opacity-30 flex items-center justify-center z-20"
-            style="margin-top: 150px; backdrop-filter: blur(5px);">
+        <div id="login-overlay" class="hidden absolute inset-0 bg-gray-900 bg-opacity-30 flex items-center justify-center z-20"
+            style="backdrop-filter: blur(5px);">
             <div class="text-center p-8 bg-white rounded-2xl shadow-2xl border max-w-md mx-4">
                 <h2 class="text-2xl font-bold text-gray-800 mb-2">서비스 이용을 위해 로그인이 필요해요</h2>
                 <p class="text-gray-600 mb-6">카카오로 1초 만에 시작하고 내 계약의 안전을 확인하세요.</p>
@@ -271,19 +272,14 @@
                 </div>
 
                 <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 flex flex-col relative">
-                    <!-- ★★★[기능 추가] 분석 기록 섹션 ★★★ -->
-                    <div id="history-section" class="hidden mb-6">
-                        <h3 class="text-xl font-semibold mb-3 border-b pb-3 text-gray-800">나의 분석 기록</h3>
-                        <div id="history-list-container" class="overflow-auto" style="max-height: 12rem;">
-                            <!-- 분석 기록 아이템들이 여기에 동적으로 추가됩니다. -->
-                        </div>
-                        <div id="history-placeholder" class="text-center text-gray-500 py-8 hidden">
-                            <p>아직 분석 기록이 없습니다.</p>
-                        </div>
-                    </div>
-
                     <div id="analysis-view" class="flex flex-col flex-grow min-h-0">
-                        <h2 class="text-2xl font-semibold mb-6 text-gray-800 flex-shrink-0">2. 종합 분석 리포트</h2>
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-2xl font-semibold text-gray-800 flex-shrink-0">2. 종합 분석 리포트</h2>
+                            <button id="show-history-btn"
+                                class="hidden bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors shadow-sm">
+                                이전 문서
+                            </button>
+                        </div>
 
                         <div id="analysis-placeholder"
                             class="flex-grow flex flex-col items-center justify-center text-center text-gray-500">
@@ -298,7 +294,6 @@
                         </div>
 
                         <div id="analysis-result-view" class="hidden flex-grow flex-col overflow-auto space-y-6">
-
                             <div class="analysis-section">
                                 <h3>핵심 정보 검증</h3>
                                 <table id="verification-table">
@@ -325,13 +320,13 @@
                                         </tr>
                                     </tbody>
                                 </table>
-                                <!-- 분석 요약 박스: 핵심 정보 검증 결과 테이블 아래에 위치 -->
                                 <div id="clause-summary-box"></div>
-                                <p id="final-summary" class="text-xs text-gray-600 mt-1"></p>
                             </div>
                             <div class="analysis-section">
                                 <div id="clauses-analysis-container">
                                 </div>
+                                <!-- ★★★[추가] 최종 코멘트가 표시될 컨테이너 ★★★ -->
+                                <div id="final-comment-container"></div>
                             </div>
                         </div>
                     </div>
@@ -354,9 +349,39 @@
         </main>
     </div>
 
+    <div id="history-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b flex-shrink-0">
+                <h3 class="text-xl font-semibold text-gray-800">나의 분석 기록</h3>
+                <button id="close-history-modal-btn" class="text-gray-500 hover:text-gray-800">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                        </path>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4 overflow-y-auto" style="max-height: 70vh;">
+                <div id="history-list-container">
+                </div>
+                <div id="history-placeholder" class="text-center text-gray-500 py-8 hidden">
+                    <p>아직 분석 기록이 없습니다.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ★★★[추가] 페이지 하단 법적 고지 (Footer) ★★★ -->
+    <footer class="text-center mt-12 py-8 border-t border-gray-200">
+        <p class="text-xs text-gray-500">본 요약은 법적 효력이 있는 문서가 아니며, 단순히 정보 요약을 목적으로 합니다.</p>
+        <p class="text-xs text-gray-500 mt-1">정확한 법적 효력을 갖는 문서는 반드시 원본 계약서와 등기부등본을 참고해야 합니다.</p>
+        <p class="text-xs text-gray-500 mt-1">이 서비스는 전세사기 예방을 위한 참고용으로만 사용해주세요.</p>
+    </footer>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // ★★★[추가] Firebase & Auth UI Elements ★★★
+            // !!! 본인의 실제 키로 반드시 교체해주세요 !!!
             const firebaseConfig = {
                 apiKey: "AIzaSyDshiVgNA04Cuhy4U0Mb16gxsHwUp_BKcM",
                 authDomain: "safesign-5dd44.firebaseapp.com",
@@ -370,7 +395,7 @@
             const auth = firebase.auth();
             const db = firebase.firestore();
 
-            // Kakao JavaScript 키 적용 이 부분 본인 kakao js키로 변경해주세요
+            // !!! 본인의 실제 키로 반드시 교체해주세요 !!!
             Kakao.init('f62a9ee355ae5511b4ca7ec18e582fe3');
 
             const loginBtn = document.getElementById('login-btn');
@@ -380,43 +405,34 @@
             const userDisplayName = document.getElementById('user-display-name');
             const loginOverlay = document.getElementById('login-overlay');
             const mainContent = document.getElementById('main-content');
-
             let currentUser = null;
-
-            // ★★★[기능 추가] 분석 기록 관련 UI 요소
-            const historySection = document.getElementById('history-section');
+            const showHistoryBtn = document.getElementById('show-history-btn');
+            const historyModal = document.getElementById('history-modal');
+            const closeHistoryModalBtn = document.getElementById('close-history-modal-btn');
             const historyListContainer = document.getElementById('history-list-container');
             const historyPlaceholder = document.getElementById('history-placeholder');
-
-            // Element References (기존 코드)
             const registerUpload = document.getElementById('register-upload'), contractUpload = document.getElementById('contract-upload'), registerPlaceholder = document.getElementById('register-placeholder'), contractPlaceholder = document.getElementById('contract-placeholder'), registerPreview = document.getElementById('register-preview'), contractPreview = document.getElementById('contract-preview'), registerDeleteBtn = document.getElementById('register-delete-btn'), contractDeleteBtn = document.getElementById('contract-delete-btn'), ocrResults = document.getElementById('ocr-results'), actionBtn = document.getElementById('action-btn'), actionBtnText = document.getElementById('action-btn-text'), actionSpinner = document.getElementById('action-spinner'), analysisView = document.getElementById('analysis-view'), analysisPlaceholder = document.getElementById('analysis-placeholder'), placeholderText = document.getElementById('placeholder-text'), analysisResultView = document.getElementById('analysis-result-view'), sideImageViewer = document.getElementById('side-image-viewer'), sideViewerImage = document.getElementById('side-viewer-image'), sideViewerCloseBtn = document.getElementById('side-viewer-close-btn');
-
             let appState = 'initial', registerFile = null, contractFile = null;
             let originalClausesText = "";
-
-            // ★★★[기능 추가] 불러온 분석 기록 데이터를 임시 저장하는 맵
             let historyDataMap = new Map();
 
-            // ★★★[수정] Firebase 인증 상태 리스너 ★★★
             auth.onAuthStateChanged(user => {
                 if (user) {
-                    // 사용자가 로그인한 경우
                     currentUser = {
                         uid: user.uid,
                         displayName: user.displayName || '사용자',
                         email: user.email
                     };
                     updateAuthUI(true);
-                    fetchAndDisplayHistory(user.uid); // 로그인 시 기록 불러오기
+                    fetchAndDisplayHistory(user.uid);
                 } else {
-                    // 사용자가 로그아웃한 경우
                     currentUser = null;
                     updateAuthUI(false);
-                    historySection.classList.add('hidden'); // 로그아웃 시 기록 숨기기
+                    showHistoryBtn.classList.add('hidden');
+                    historyModal.classList.add('hidden');
                 }
             });
 
-            // ★★★[추가] 인증 상태에 따른 UI 업데이트 함수 ★★★
             function updateAuthUI(isLoggedIn) {
                 if (isLoggedIn) {
                     loginBtn.classList.add('hidden');
@@ -431,63 +447,39 @@
                     userProfile.classList.remove('flex');
                     loginOverlay.classList.remove('hidden');
                     mainContent.classList.add('blurred');
-                    resetAnalysisState(); // 로그아웃 시 분석 상태 초기화
+                    resetAnalysisState();
                 }
             }
 
-            // ★★★[기능 구현] 실제 카카오 로그인 로직으로 교체 ★★★
             function signInWithKakao() {
-                // 1. 카카오 SDK를 사용해 로그인 요청 및 액세스 토큰 발급
                 Kakao.Auth.login({
-                    scope: 'profile_nickname', // ★★★[수정] 닉네임 정보 수집을 위한 scope 추가 ★★★
+                    scope: 'profile_nickname',
                     success: function (authObj) {
-                        console.log('카카오 로그인 성공:', authObj);
-                        const kakaoAccessToken = authObj.access_token;
-
-                        // 2. 발급받은 액세스 토큰을 우리 백엔드 서버로 전송
                         fetch('/kakao-login', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ token: kakaoAccessToken })
+                            body: JSON.stringify({ token: authObj.access_token })
                         })
-                            .then(response => {
-                                if (!response.ok) {
-                                    throw new Error('백엔드 서버에서 Firebase 토큰을 받아오지 못했습니다.');
-                                }
-                                return response.json();
-                            })
-                            .then(data => {
-                                if (data.firebase_token) {
-                                    // 3. 백엔드로부터 받은 Firebase 커스텀 토큰으로 Firebase에 로그인
-                                    auth.signInWithCustomToken(data.firebase_token)
-                                        .catch(function (error) {
-                                            console.error('Firebase 커스텀 토큰 로그인 실패:', error);
-                                            alert('로그인에 실패했습니다. 잠시 후 다시 시도해주세요.');
-                                        });
-                                } else {
-                                    throw new Error('백엔드 응답에 firebase_token이 없습니다.');
-                                }
-                            })
-                            .catch(error => {
-                                console.error('백엔드 통신 오류:', error);
-                                alert('로그인 처리 중 오류가 발생했습니다.');
-                            });
+                        .then(response => {
+                            if (!response.ok) { throw new Error('Firebase 토큰 발급 실패'); }
+                            return response.json();
+                        })
+                        .then(data => {
+                            if (data.firebase_token) {
+                                auth.signInWithCustomToken(data.firebase_token)
+                                    .catch(error => console.error('Firebase 로그인 실패:', error));
+                            } else { throw new Error('firebase_token 없음'); }
+                        })
+                        .catch(error => console.error('로그인 처리 오류:', error));
                     },
-                    fail: function (err) {
-                        console.error('카카오 로그인 실패:', err);
-                        alert('카카오 로그인에 실패했습니다. 팝업 차단 여부를 확인해주세요.');
-                    },
+                    fail: err => console.error('카카오 로그인 실패:', err),
                 });
             }
 
-            // ★★★[추가] 로그아웃 함수 ★★★
             function signOutUser() {
-                if (auth.currentUser) {
-                    auth.signOut().catch(error => console.error("Firebase Logout Error:", error));
-                }
+                if (auth.currentUser) { auth.signOut(); }
             }
 
-            // ★★★[추가] 분석 상태 초기화 함수 ★★★
             function resetAnalysisState() {
                 appState = 'initial';
                 registerFile = null;
@@ -501,174 +493,176 @@
                 updateUI();
             }
 
-            // ★★★[기능 추가] Firestore에서 분석 기록 가져와서 표시하는 함수 ★★★
             async function fetchAndDisplayHistory(uid) {
                 historyDataMap.clear();
                 historyListContainer.innerHTML = '';
                 historyPlaceholder.classList.add('hidden');
-
                 try {
-                    const querySnapshot = await db.collection('users').doc(uid).collection('analyses')
-                        .orderBy('createdAt', 'desc')
-                        .get();
-
+                    const querySnapshot = await db.collection('users').doc(uid).collection('analyses').orderBy('createdAt', 'desc').get();
                     if (querySnapshot.empty) {
                         historyPlaceholder.classList.remove('hidden');
                     } else {
                         querySnapshot.forEach(doc => {
                             const data = doc.data();
                             const docId = doc.id;
-                            historyDataMap.set(docId, data); // 맵에 데이터 저장
-
+                            historyDataMap.set(docId, data);
                             const item = document.createElement('div');
                             item.className = 'history-item p-3 mb-2 border rounded-lg cursor-pointer hover:bg-gray-100 transition';
                             item.dataset.id = docId;
-
-                            // 주소 추출 로직 개선 (Fallback 기능 추가)
-                            let address = "주소 정보 없음";
-
-                            // 1순위: 새로 저장된 parsedData 객체에서 주소를 찾습니다.
-                            if (data.parsedData && typeof data.parsedData.contract_addr === "string" && data.parsedData.contract_addr.trim() !== "") {
-                                address = data.parsedData.contract_addr.trim();
-                            }
-                            // 2순위 (Fallback): 1순위에서 주소를 못 찾은 경우, 기존에 저장된 summaryText에서 직접 파싱을 시도합니다.
-                            // 이렇게 하면 과거에 분석한 기록도 주소가 표시될 수 있습니다.
-                            else if (data.summaryText) {
-                                const match = data.summaryText.match(/계약주소:\s*(.*)/);
-                                if (match && match[1] && match[1].trim() !== "") {
-                                    address = match[1].trim();
-                                }
-                            }
-
+                            let address = (data.parsedData && data.parsedData.contract_addr) ? data.parsedData.contract_addr.trim() : '주소 정보 없음';
                             const date = data.createdAt ? data.createdAt.toDate().toLocaleDateString('ko-KR') : '날짜 정보 없음';
-
-                            item.innerHTML = `
-                                <p class="font-semibold text-gray-800 truncate">${address}</p>
-                                <p class="text-sm text-gray-500">${date}</p>
-                            `;
+                            item.innerHTML = `<p class="font-semibold text-gray-800 truncate">${address}</p><p class="text-sm text-gray-500">${date}</p>`;
                             historyListContainer.appendChild(item);
                         });
                     }
-                    historySection.classList.remove('hidden');
+                    showHistoryBtn.classList.remove('hidden');
                 } catch (error) {
                     console.error("분석 기록 로딩 실패:", error);
-                    historyPlaceholder.textContent = '기록을 불러오는 중 오류가 발생했습니다.';
+                    historyPlaceholder.textContent = '기록 로딩 중 오류 발생.';
                     historyPlaceholder.classList.remove('hidden');
-                    historySection.classList.remove('hidden');
+                    showHistoryBtn.classList.remove('hidden');
                 }
             }
 
-            // ★★★[기능 추가] 분석 기록 클릭 이벤트 리스너 (이벤트 위임) ★★★
             historyListContainer.addEventListener('click', (e) => {
                 const historyItem = e.target.closest('.history-item');
                 if (historyItem) {
                     const docId = historyItem.dataset.id;
                     const data = historyDataMap.get(docId);
-
                     if (data) {
-                        // 1. 재분석을 위해 파일 업로드 영역을 초기화합니다.
-                        registerFile = null;
-                        contractFile = null;
-                        displayPreview(null, registerPreview, registerPlaceholder, registerDeleteBtn);
-                        displayPreview(null, contractPreview, contractPlaceholder, contractDeleteBtn);
-
-                        // 2. 저장된 텍스트를 'AI 보정 결과' 창으로 불러옵니다.
+                        resetAnalysisState();
                         ocrResults.value = data.summaryText || '';
-                        originalClausesText = data.clausesText || '특약사항 없음'; // 과거 기록에 특약사항이 없을 수 있으므로 기본값 설정
-                        finalSummaryText = data.final_summary;
-                        // 3. 오른쪽 분석 리포트 영역을 '분석 대기 중' 상태로 초기화합니다.
-                        analysisResultView.classList.add('hidden');
-                        analysisPlaceholder.classList.remove('hidden');
-                        placeholderText.innerHTML = "선택한 기록의 텍스트가 복원되었습니다.<br>아래 '종합 분석 실행' 버튼을 눌러 재분석할 수 있습니다.";
-
-                        // 4. ★★★[핵심] 앱 상태를 '분석 가능' 상태로 변경하여 버튼을 활성화합니다.
+                        originalClausesText = data.clausesText || '특약사항 없음';
+                        placeholderText.innerHTML = "선택한 기록이 복원되었습니다.<br>'종합 분석 실행'을 눌러 재분석하세요.";
                         appState = 'ocr_done';
                         updateUI();
-
-                        // 사용자가 바로 인지할 수 있도록 'AI 보정 결과' 영역으로 스크롤합니다.
-                        document.getElementById('ocr-results').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        historyModal.classList.add('hidden');
                     }
                 }
             });
-
-            // ★★★[추가] 버튼 이벤트 리스너 연결 ★★★
+            
+            showHistoryBtn.addEventListener('click', () => historyModal.classList.remove('hidden'));
+            closeHistoryModalBtn.addEventListener('click', () => historyModal.classList.add('hidden'));
+            historyModal.addEventListener('click', (e) => { if (e.target.id === 'history-modal') historyModal.classList.add('hidden'); });
             loginBtn.addEventListener('click', () => loginOverlay.classList.remove('hidden'));
             kakaoLoginBtn.addEventListener('click', signInWithKakao);
             logoutBtn.addEventListener('click', signOutUser);
 
-            // UI Update Function (기존 코드)
             const updateUI = () => {
+                actionBtn.disabled = true;
                 switch (appState) {
-                    case 'initial':
-                        actionBtn.disabled = true;
-                        actionBtnText.textContent = '서류를 모두 업로드하세요';
-                        analysisResultView.classList.add('hidden');
-                        analysisPlaceholder.classList.remove('hidden');
-                        placeholderText.innerHTML = "왼쪽에서 서류를 업로드하고<br>텍스트 추출을 진행해주세요.";
-                        break;
                     case 'files_uploaded':
                         actionBtn.disabled = false;
                         actionBtnText.textContent = 'AI로 텍스트 추출 및 보정';
                         break;
                     case 'ocr_done':
                         actionBtn.disabled = false;
-                        // ★★★[텍스트 변경] 버튼 텍스트를 '종합 분석 실행'으로 변경 (기존 코드)
                         actionBtnText.textContent = '종합 분석 실행';
-                        placeholderText.innerHTML = "AI 보정 결과를 확인 및 수정 후<br>종합 분석을 실행해주세요.";
-                        ocrResults.classList.add('highlight-animation');
-                        setTimeout(() => { ocrResults.classList.remove('highlight-animation') }, 1500);
                         break;
                     case 'analysis_done':
-                        actionBtn.disabled = true;
                         actionBtnText.textContent = '분석 완료';
                         break;
+                    default:
+                        actionBtnText.textContent = '서류를 모두 업로드하세요';
                 }
             };
 
-            // Preview Display Function (기존 코드)
             const displayPreview = (file, previewEl, placeholderEl, deleteBtn) => {
-                if (!file) { previewEl.classList.add('hidden'); previewEl.classList.remove('preview-img-clickable'); previewEl.src = ''; deleteBtn.classList.add('hidden'); placeholderEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400 mb-3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg><p class="text-sm">파일을 드래그하거나 클릭</p>'; placeholderEl.classList.remove('hidden'); return }
-                deleteBtn.classList.remove('hidden'); placeholderEl.classList.add('hidden'); previewEl.classList.remove('hidden');
-                if (file.type.startsWith('image/')) { const reader = new FileReader; reader.onload = e => { previewEl.src = e.target.result; previewEl.classList.add('preview-img-clickable') }; reader.readAsDataURL(file) } else { previewEl.src = ''; previewEl.classList.add('hidden'); previewEl.classList.remove('preview-img-clickable'); placeholderEl.innerHTML = `<div class="flex flex-col items-center text-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400 mb-3"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg><p class="text-sm font-medium truncate w-full px-4">${file.name}</p></div>`; placeholderEl.classList.remove('hidden') }
+                if (!file) {
+                    previewEl.classList.add('hidden');
+                    previewEl.classList.remove('preview-img-clickable');
+                    previewEl.src = '';
+                    deleteBtn.classList.add('hidden');
+                    placeholderEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400 mb-3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg><p class="text-sm">파일을 드래그하거나 클릭</p>';
+                    placeholderEl.classList.remove('hidden');
+                    return;
+                }
+                deleteBtn.classList.remove('hidden');
+                placeholderEl.classList.add('hidden');
+                previewEl.classList.remove('hidden');
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader;
+                    reader.onload = e => { previewEl.src = e.target.result; previewEl.classList.add('preview-img-clickable') };
+                    reader.readAsDataURL(file);
+                } else {
+                    previewEl.src = '';
+                    previewEl.classList.add('hidden');
+                    previewEl.classList.remove('preview-img-clickable');
+                    placeholderEl.innerHTML = `<div class="flex flex-col items-center text-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400 mb-3"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg><p class="text-sm font-medium truncate w-full px-4">${file.name}</p></div>`;
+                    placeholderEl.classList.remove('hidden');
+                }
             };
 
-            const checkFilesAndUpdateState = () => { registerFile && contractFile ? appState = 'files_uploaded' : (appState = 'initial', ocrResults.value = '', originalClausesText = ''), updateUI() };
-            const showSideImageViewer = imageUrl => { if (imageUrl) { analysisView.classList.add('hidden'); sideImageViewer.classList.remove('hidden'); sideViewerImage.src = imageUrl; } };
-            const hideSideImageViewer = () => { sideImageViewer.classList.add('hidden'); analysisView.classList.remove('hidden'); sideViewerImage.src = ""; };
+            const checkFilesAndUpdateState = () => {
+                if (registerFile && contractFile) {
+                    appState = 'files_uploaded';
+                } else {
+                    appState = 'initial';
+                    ocrResults.value = '';
+                    originalClausesText = '';
+                }
+                updateUI();
+            };
+            
+            const showSideImageViewer = imageUrl => {
+                if (imageUrl) {
+                    analysisView.classList.add('hidden');
+                    sideImageViewer.classList.remove('hidden');
+                    sideViewerImage.src = imageUrl;
+                }
+            };
+            const hideSideImageViewer = () => {
+                sideImageViewer.classList.add('hidden');
+                analysisView.classList.remove('hidden');
+                sideViewerImage.src = "";
+            };
 
-            // Upload Listener Setup (기존 코드)
             const setupUploadListener = (dropZone, input, placeholder, preview, deleteBtn, isRegister) => {
-                const handleFile = file => { isRegister ? registerFile = file : contractFile = file; displayPreview(file, preview, placeholder, deleteBtn); checkFilesAndUpdateState() };
-                dropZone.addEventListener('click', () => { const fileExists = isRegister ? registerFile : contractFile; if (!fileExists) input.click() });
-                dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover') });
-                dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove('dragover') });
-                dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]) });
-                input.addEventListener('change', e => { if (e.target.files && e.target.files[0]) handleFile(e.target.files[0]) });
-                deleteBtn.addEventListener('click', e => { e.stopPropagation(); input.value = ''; isRegister ? registerFile = null : contractFile = null; displayPreview(null, preview, placeholder, deleteBtn); checkFilesAndUpdateState(); hideSideImageViewer() });
+                const handleFile = file => {
+                    if (isRegister) { registerFile = file; } else { contractFile = file; }
+                    displayPreview(file, preview, placeholder, deleteBtn);
+                    checkFilesAndUpdateState();
+                };
+                dropZone.addEventListener('click', () => {
+                    const fileExists = isRegister ? registerFile : contractFile;
+                    if (!fileExists) input.click();
+                });
+                dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+                dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove('dragover'); });
+                dropZone.addEventListener('drop', e => {
+                    e.preventDefault();
+                    dropZone.classList.remove('dragover');
+                    if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+                });
+                input.addEventListener('change', e => { if (e.target.files && e.target.files[0]) handleFile(e.target.files[0]); });
+                deleteBtn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    input.value = '';
+                    if (isRegister) { registerFile = null; } else { contractFile = null; }
+                    displayPreview(null, preview, placeholder, deleteBtn);
+                    checkFilesAndUpdateState();
+                    hideSideImageViewer();
+                });
             };
             setupUploadListener(document.getElementById('drop-zone-register'), registerUpload, registerPlaceholder, registerPreview, registerDeleteBtn, true);
             setupUploadListener(document.getElementById('drop-zone-contract'), contractUpload, contractPlaceholder, contractPreview, contractDeleteBtn, false);
             document.getElementById('edit-btn').addEventListener('click', () => { ocrResults.focus(); ocrResults.select(); });
 
-            // ★★★[구조 변경] Main Action Button 로직 재구성 (기존 코드)
             actionBtn.addEventListener('click', () => {
-                // ★★★[수정] 요청 시 현재 사용자 UID (currentUser.uid)도 함께 백엔드로 보내야 합니다.
                 if (actionBtn.disabled || !currentUser) {
                     if (!currentUser) alert('로그인이 필요합니다.');
                     return;
                 }
 
-                // 1단계: OCR 및 1차 텍스트 보정
                 if (appState === 'files_uploaded') {
                     hideSideImageViewer();
                     actionBtn.disabled = true;
                     actionSpinner.classList.remove('hidden');
                     actionBtnText.textContent = 'AI로 텍스트 보정 중...';
-
                     const formData = new FormData();
                     formData.append('registerFile', registerFile);
                     formData.append('contractFile', contractFile);
-                    formData.append('uid', currentUser.uid); // 백엔드 요청 시 UID 추가
+                    formData.append('uid', currentUser.uid);
 
                     fetch('/ocr', { method: 'POST', body: formData })
                         .then(response => {
@@ -682,16 +676,6 @@
                             } else {
                                 ocrResults.value = data.summary_text;
                                 originalClausesText = data.clauses_text;
-
-                                // 추가: 최종 분석 텍스트 처리
-                                finalSummaryText = data.final_summary;
-
-                                // 디버깅 로그 추가
-                               
-
-                                // DOM 요소에 최종 분석 추가
-                
-
                                 appState = 'ocr_done';
                             }
                         })
@@ -704,14 +688,11 @@
                             actionSpinner.classList.add('hidden');
                             updateUI();
                         });
-                }
-                // 2단계: 사용자가 수정한 텍스트 기반으로 종합 분석
-                else if (appState === 'ocr_done') {
+                } else if (appState === 'ocr_done') {
                     hideSideImageViewer();
                     actionBtn.disabled = true;
                     actionSpinner.classList.remove('hidden');
                     actionBtnText.textContent = '종합 분석 중...';
-
                     const finalSummaryText = ocrResults.value;
 
                     fetch('/process-analysis', {
@@ -720,45 +701,83 @@
                         body: JSON.stringify({
                             summary_text: finalSummaryText,
                             clauses_text: originalClausesText,
-                            uid: currentUser.uid // 백엔드 요청 시 UID 추가
+                            uid: currentUser.uid
                         })
                     })
-                        .then(response => {
-                            if (!response.ok) { return response.json().then(err => { throw new Error(err.error || '서버 응답 오류') }); }
-                            return response.json();
-                        })
-                        .then(result => {
-                          
-
-                            if (result.error) {
-                                alert('분석 오류: ' + result.error);
-                            } else {
-                                // ★★★[기능 추가] 서버로부터 받은 종합 분석 결과를 화면에 표시 (기존 코드)
-                                displayAnalysisResults(result);
-                                appState = 'analysis_done';
-                                fetchAndDisplayHistory(currentUser.uid); // 분석 완료 후 목록 새로고침
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Fetch Error:', error);
-                            alert('분석 중 오류가 발생했습니다: ' + error.message);
-                        })
-                        .finally(() => {
-                            actionSpinner.classList.add('hidden');
-                            updateUI();
-                        });
+                    .then(response => {
+                        if (!response.ok) { return response.json().then(err => { throw new Error(err.error || '서버 응답 오류') }); }
+                        return response.json();
+                    })
+                    .then(result => {
+                        if (result.error) {
+                            alert('분석 오류: ' + result.error);
+                        } else {
+                            displayAnalysisResults(result);
+                            appState = 'analysis_done';
+                            fetchAndDisplayHistory(currentUser.uid);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Fetch Error:', error);
+                        alert('분석 중 오류가 발생했습니다: ' + error.message);
+                    })
+                    .finally(() => {
+                        actionSpinner.classList.add('hidden');
+                        updateUI();
+                    });
                 }
             });
 
-            // ★★★[수정] 카드 UI를 표시하고 등급을 카운팅하는 최종 함수 ★★★
+            // ★★★[수정된 최종 함수]★★★
             function displayAnalysisResults(result) {
-                // 1. 데이터 및 카운터 초기화
                 const verifications = result.verifications || {};
                 const logicResults = verifications.logic_results || {};
-                const clausesHtml = verifications.clauses_html || "분석할 특약사항이 없거나 결과를 생성하지 못했습니다.";
+                let clausesHtml = verifications.clauses_html || "분석할 특약사항이 없거나 결과를 생성하지 못했습니다.";
                 const finalRiskGrade = verifications.final_grade || '주의';
                 
-                // 2. 핵심 정보 테이블 업데이트
+                const clausesContainer = document.getElementById('clauses-analysis-container');
+                const finalCommentContainer = document.getElementById('final-comment-container');
+                const summaryBox = document.getElementById("clause-summary-box");
+
+                // 1. 최종 코멘트와 특약사항 HTML 분리
+                const commentMarker = "### 최종 코멘트";
+                let finalCommentText = "";
+                if (clausesHtml.includes(commentMarker)) {
+                    const parts = clausesHtml.split(commentMarker);
+                    clausesHtml = parts[0].trim();
+                    finalCommentText = parts[1].trim();
+                }
+
+                // 2. 최종 코멘트를 Fancy한 UI로 렌더링
+                if (finalCommentText) {
+                    finalCommentContainer.innerHTML = `
+                        <div class="final-comment-card">
+                            <div class="flex items-start gap-4">
+                                <div class="flex-shrink-0 text-blue-500 mt-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                                </div>
+                                <div>
+                                    <h4 class="font-bold text-gray-900 text-lg">종합 의견</h4>
+                                    <p class="text-sm text-gray-700 mt-2 leading-relaxed">${finalCommentText}</p>
+                                </div>
+                            </div>
+                        </div>`;
+                } else {
+                    finalCommentContainer.innerHTML = '';
+                }
+
+                // 3. 특약사항 카드 렌더링
+                let riskCardHeader = '';
+                if (finalRiskGrade === '위험') {
+                    riskCardHeader = `<div class="p-4 rounded-lg flex items-center gap-4 bg-red-50 border border-red-200"><span class="text-red-500"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span><div><p class="font-bold text-xl text-red-700">위험</p><p class="text-sm text-red-600">보증금 미반환 위험이 높은 고위험 계약입니다.</p></div></div>`;
+                } else if (finalRiskGrade === '주의') {
+                    riskCardHeader = `<div class="p-4 rounded-lg flex items-center gap-4 bg-yellow-50 border border-yellow-200"><span class="text-yellow-500"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg></span><div><p class="font-bold text-xl text-yellow-700">주의</p><p class="text-sm text-yellow-600">계약 전 반드시 확인해야 할 사항이 있습니다.</p></div></div>`;
+                } else {
+                    riskCardHeader = `<div class="p-4 rounded-lg flex items-center gap-4 bg-green-50 border border-green-200"><span class="text-green-500"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span><div><p class="font-bold text-xl text-green-700">안전</p><p class="text-sm text-green-600">분석 결과 특이사항이 발견되지 않았습니다.</p></div></div>`;
+                }
+                clausesContainer.innerHTML = `<h3>특약사항 분석</h3>` + riskCardHeader + `<div class="mt-4">${clausesHtml}</div>`;
+
+                // 4. 나머지 UI 업데이트 (updateCell, summaryBox 등)
                 const updateCell = (elementId, resultData) => {
                     const cell = document.getElementById(elementId);
                     if (!cell) return;
@@ -777,25 +796,15 @@
                 updateCell('verification-price', logicResults['시세 대비 보증금 위험']);
                 updateCell('verification-risk-calc', logicResults['보증금 대비 채권최고액 위험']);
 
-                // 2.5. 분석 요약 박스(clauses summary) 표시 (기존 summaryBox.innerHTML 구문 전부 제거, 아래 코드만 사용)
-                const summaryBox = document.getElementById("clause-summary-box");
-                const logicKeys = [
-                  '임대인-소유주 일치',
-                  '주소 일치 여부',
-                  '시세 대비 보증금 위험',
-                  '보증금 대비 채권최고액 위험'
-                ];
-                let riskHigh = 0;
-                let riskMedium = 0;
-                let riskLow = 0;
+                const logicKeys = ['임대인-소유주 일치', '주소 일치 여부', '시세 대비 보증금 위험', '보증금 대비 채권최고액 위험'];
+                let riskHigh = 0, riskMedium = 0, riskLow = 0;
                 logicKeys.forEach(key => {
-                  const item = logicResults[key];
-                  if (!item || !item.grade) return;
-                  if (item.grade === '위험') riskHigh++;
-                  else if (item.grade === '주의') riskMedium++;
-                  else if (item.grade === '안전') riskLow++;
+                    const item = logicResults[key];
+                    if (!item || !item.grade) return;
+                    if (item.grade === '위험') riskHigh++;
+                    else if (item.grade === '주의') riskMedium++;
+                    else if (item.grade === '안전') riskLow++;
                 });
-                // clausesCount와 risk counts는 숫자로 강제 변환
                 const clausesCount = parseInt(verifications.clauses_count || 0, 10);
                 const clauseHigh = parseInt(verifications.risk_high_count || 0, 10);
                 const clauseMedium = parseInt(verifications.risk_medium_count || 0, 10);
@@ -805,58 +814,22 @@
                 const totalMedium = riskMedium + clauseMedium;
                 const totalLow = riskLow + clauseLow;
                 if (summaryBox) {
-                  summaryBox.innerHTML = `
-                    <div class="rounded-lg bg-gray-50 text-sm text-gray-700 p-4 border border-gray-200">
-                      <p><strong>분석 대상 수:</strong> ${totalCount}개</p>
-                      <p>- 위험 등급: ${totalHigh}개</p>
-                      <p>- 주의 등급: ${totalMedium}개</p>
-                      <p>- 안전 등급: ${totalLow}개</p>
-                      <hr class="my-2">
-                      <p id="grade-reason" class="text-xs text-gray-600"></p>
-                    </div>
-                  `;
-                  // Ensure gradeReasonElement is set after DOM updates
-                  setTimeout(() => {
-                    const gradeReasonElement = document.getElementById('grade-reason');
-                    if (gradeReasonElement) {
-                    
-                    
-                      gradeReasonElement.textContent = result.evaluation.judgment_reason || "";
-                    } else {
-                      console.warn("⚠️ grade-reason 요소가 DOM에 없음");
-                    }
-                  }, 0);
-                }
-                // [최종 분석] 표시
-                const finalSummaryElement = document.getElementById("final-summary");
-                if (finalSummaryElement && result.verifications && result.verifications.final_summary) {
-                  finalSummaryElement.textContent = result.verifications.final_summary;
+                    summaryBox.innerHTML = `
+                        <div class="rounded-lg bg-gray-50 text-sm text-gray-700 p-4 border border-gray-200 mt-4">
+                            <p class="font-bold mb-2">종합 위험도 요약</p>
+                            <div class="space-y-1">
+                                <p><strong>- 총 분석 항목:</strong> ${totalCount}개</p>
+                                <p class="text-red-600"><strong>- 위험 항목:</strong> ${totalHigh}개</p>
+                                <p class="text-yellow-600"><strong>- 주의 항목:</strong> ${totalMedium}개</p>
+                                <p class="text-green-600"><strong>- 안전 항목:</strong> ${totalLow}개</p>
+                            </div>
+                            <hr class="my-3">
+                            <p id="grade-reason" class="text-xs text-gray-600 leading-relaxed">${result.evaluation.judgment_reason || ""}</p>
+                        </div>`;
                 }
 
-                // 3. 특약사항 분석 섹션 렌더링
-                const clausesContainer = document.getElementById('clauses-analysis-container');
-                let riskCardHeader = '';
-                if (finalRiskGrade === '위험') {
-                    riskCardHeader = `<div class="p-4 rounded-lg flex items-center gap-4 bg-red-50 border border-red-200"><span class="text-red-500"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span><div><p class="font-bold text-xl text-red-700">위험</p><p class="text-sm text-red-600">보증금 미반환 위험이 높은 고위험 계약입니다.</p></div></div>`;
-                } else if (finalRiskGrade === '주의') {
-                    riskCardHeader = `<div class="p-4 rounded-lg flex items-center gap-4 bg-yellow-50 border border-yellow-200"><span class="text-yellow-500"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg></span><div><p class="font-bold text-xl text-yellow-700">주의</p><p class="text-sm text-yellow-600">계약 전 반드시 확인해야 할 사항이 있습니다.</p></div></div>`;
-                } else {
-                    riskCardHeader = `<div class="p-4 rounded-lg flex items-center gap-4 bg-green-50 border border-green-200"><span class="text-green-500"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span><div><p class="font-bold text-xl text-green-700">안전</p><p class="text-sm text-green-600">분석 결과 특이사항이 발견되지 않았습니다.</p></div></div>`;
-                }
-
-                clausesContainer.innerHTML = `<h3>특약사항 분석</h3>` + riskCardHeader + `<div class="mt-4">${clausesHtml}</div>`;
-                const finalSummaryContainer = document.getElementById('final-summary-box');
-                if (finalSummaryContainer && finalSummaryText) {
-                    finalSummaryContainer.innerHTML = `
-                        <div class="mt-6 p-4 border rounded-lg bg-gray-50 text-gray-800">
-                            <h3 class="font-bold text-lg mb-2">최종 분석</h3>
-                            <p>${finalSummaryText}</p>
-                        </div>
-                    `;
-                }
-                // 4. 분석 결과 영역 노출
-                analysisPlaceholder.classList.add('hidden');
-                analysisResultView.classList.remove('hidden');
+                document.getElementById('analysis-placeholder').classList.add('hidden');
+                document.getElementById('analysis-result-view').classList.remove('hidden');
             }
 
             registerPreview.addEventListener('click', () => showSideImageViewer(registerPreview.src));
@@ -865,8 +838,5 @@
 
         });
     </script>
-    <div id="final-summary-box" class="mt-6"></div>
 </body>
-
-
 </html>
