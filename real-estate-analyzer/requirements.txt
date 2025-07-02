@@ -4,6 +4,10 @@
 Flask==2.3.3
 Werkzeug==2.3.7
 python-dotenv==0.21.1
+firebase-admin==6.1.0
+requests
+gunicorn
+pandas
 
 #OCR & Image Processing
 easyocr==1.7.1
@@ -15,12 +19,17 @@ Pillow==10.3.0
 #AI Model
 google-generativeai==0.3.2
 
-# ================================================================
-# 🧠 PyTorch (EasyOCR의 핵심 엔진) - GPU (CUDA 12.6) 버전
-# 아래 --index-url을 통해 CUDA 버전에 맞는 PyTorch가 설치됩니다.
-# ================================================================
+# Data Analysis (시세계산용)
+pandas
+scikit-learn
 
---index-url https://download.pytorch.org/whl/cu126
+# ================================================================
+# 🧠 PyTorch (EasyOCR의 핵심 엔진) - CPU 버전
+# GPU 관련(--extra-index-url) 옵션을 주석 처리하여,
+# 배포 환경에 맞는 CPU 전용 PyTorch가 자동으로 설치되도록 합니다.
+# ================================================================
+# --extra-index-url https://download.pytorch.org/whl/cu126 이거는 서버용입니다.
+# 배포할때 필요하니깐 주석처리 유지해주세요
 torch
 torchvision
 torchaudio

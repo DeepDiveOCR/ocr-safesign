@@ -6,10 +6,6 @@ venv/
 # API 키, 데이터베이스 암호 등 민감한 정보가 담긴 파일이므로 절대 공유해서는 안 됩니다.
 .env
 
-# Uploads Folder
-# 사용자가 업로드한 파일이 저장되는 폴더입니다. 저장소에 포함시키지 않습니다.
-uploads/
-
 # Python cache
 # 파이썬 실행 시 자동으로 생성되는 캐시 파일 및 폴더입니다.
 __pycache__/
@@ -21,11 +17,14 @@ __pycache__/
 # VS Code 등 편집기 설정 관련 폴더입니다.
 .vscode/
 
-# OS generated files
+# OS generated files.
 # 운영체제에서 자동으로 생성하는 파일입니다. (macOS, Windows)
 .DS_Store
 Thumbs.db
+.EasyOCR
 
 # Test files
 # 임시 테스트 파일은 저장소에 포함하지 않습니다.
 test.txt
+firebase-debug.log
+firebase-credentials.json
