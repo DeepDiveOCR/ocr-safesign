@@ -1,9 +1,6 @@
-import os
-import sys
 
-# C++ 레벨 stderr 완전 차단
-sys.stderr = open(os.devnull, 'w')
 import cv2
+import os
 import re # ★★★[기능 추가] 텍스트 파싱을 위한 정규표현식 라이브러리
 import numpy as np
 import easyocr
@@ -13,8 +10,6 @@ from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from datetime import datetime
-import warnings
-warnings.filterwarnings("ignore", message="Could not initialize NNPACK")
 
 
 # ★★★[기능 추가] Firebase 서버 연동을 위한 Admin SDK ★★★
