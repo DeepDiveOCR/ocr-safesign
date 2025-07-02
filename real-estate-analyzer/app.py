@@ -347,16 +347,13 @@ def ocr_process():
         full_corrected_text = response.text
 
         # ★★★ [구조 변경] Gemini가 생성한 텍스트를 '요약'과 '특약사항'과 '최종 분석 '으로 분리
-        summary_part = ""
-        clauses_part = "특약사항 없음" # 기본값
-        
-        # 3. clauses_part: "특약사항" 이후 전체
         split_keyword = "특약사항"
         if split_keyword in full_corrected_text:
             parts = full_corrected_text.split(split_keyword, 1)
-            # clauses_part는 "특약사항" + 나머지
+            summary_part = parts[0].strip()
             clauses_part = (split_keyword + parts[1]).strip()
         else:
+            summary_part = full_corrected_text.strip()
             clauses_part = "특약사항 없음"
 
         # 분리된 텍스트를 각각 JSON으로 반환
@@ -531,8 +528,10 @@ def process_analysis():
         if owner_name and lessor_name:
             import re
             def extract_name_only(text):
-                # 괄호 안에 주민번호 형식 제거
-                return re.sub(r'\s*\(.*?\)', '', text).strip()
+                # Remove any parenthesized content
+                cleaned = re.sub(r'\s*\(.*?\)', '', text).strip()
+                # Keep only the part before the first comma
+                return cleaned.split(',')[0].strip()
             owner_name_only = extract_name_only(owner_name)
             lessor_name_only = extract_name_only(lessor_name)
             print("[검증] 임대인-소유주 일치 비교 대상 이름만:")
@@ -597,37 +596,33 @@ def process_analysis():
         clauses_text = "특약사항 없음"
         print("🧾 사용할 특약사항 없음")
 
-    # 3. 특약사항 분석 (Gemini API 호출)
+    # 3. 특약사항 분석 및 최종 코멘트 생성
     clauses_analysis_result = "분석할 특약사항 없음"
     if clauses_text and "특약사항 없음" not in clauses_text:
         if not model: return jsonify({'error': 'Gemini API가 초기화되지 않았습니다.'}), 500
         try:
-            # ★★★[핵심 수정] 특약사항 위험도 분석을 위한 전용 프롬프트: 카드 스타일 HTML 강제 프롬프트로 변경 ★★★
             prompt = f"""
-당신은 대한민국 부동산 계약의 법률 전문가입니다. 아래의 '특약사항' 조항들을 임차인의 입장에서 분석하세요.
+당신은 대한민국 부동산 계약의 법률 전문가입니다.
+아래 '특약사항 텍스트'를 임차인의 입장에서 분석하되, 위험 판단은 객관적인 사실과 조문 해석에 기반하여 균형 잡힌 어조로 작성해주세요. 과도하게 높은 위험 등급 표시는 자제하고, 실제로 분쟁 가능성이 있는 부분만 명확하게 지적해 주세요.
 
-            [특약사항 내용]
-            {clauses_text}
-            [/특약사항 내용]
+1. 특약사항 위험 분석 (HTML 카드)
+- 제공된 텍스트의 각 조항을 분석하여, 결과를 아래 예시 같은 HTML 카드 형식으로만 출력합니다.
+- 카드 외 다른 텍스트(인사말, 서론, 요약)는 포함하지 마세요.
+- 위험도 클래스는 `risk-high`(위험), `risk-medium`(주의), `risk-low`(낮음) 세 가지를 사용합니다.
+[HTML 카드 예시]
+<div class="risk-card">
+  <div class="risk-title"><b>1.</b> 조항 내용...</div>
+  <div class="risk-badge risk-high">🚨 위험</div>
+  <div class="risk-desc">위험 설명 및 조치 제안...</div>
+</div>
 
-            [분석 지침]
-            1. 각 조항을 아래와 같은 카드 형태 HTML로 분석하세요.
+2. 최종 코멘트 (마무리 멘트)
+- 분석 내용을 바탕으로 객관적이고 간결한 어투로 2~3문장 의견을 작성하세요.
+- 과도한 경고를 피하고, 실제로 조치가 필요한 부분만 강조해 주세요.
+- 반드시 `### 최종 코멘트` 제목으로 시작합니다.
 
-            예시:
-            <div class="risk-card">
-              <div class="risk-title"><b><span class="risk-number">1.</span> 조항 내용</b></div>
-              <div class="risk-badge risk-high">🚨 위험</div>
-              <div class="risk-desc">해당 조항에 대한 위험 설명 및 조치 제안</div>
-            </div>
-
-            2. 반드시 위와 같은 HTML 카드 형태만 출력하세요. 표나 일반 텍스트, 인삿말, 서론 등은 포함하지 마세요.
-            3. 위험도는 다음 중 하나만 사용하세요:
-               - <div class="risk-badge risk-high">🚨 위험</div>
-               - <div class="risk-badge risk-medium">⚠️ 주의</div>
-               - <div class="risk-badge risk-low">✔️ 낮음</div>
-            4. <div class="risk-card">로 시작해서, 내부에 title, badge, desc를 포함하는 구조로만 출력하세요.
-
-            📌 중요: 절대 표 형태나 리스트 형태로 출력하지 마세요. 반드시
+[분석할 특약사항 텍스트]
+{clauses_text}
 """
             response = model.generate_content(prompt)
             clauses_analysis_result = response.text
@@ -689,13 +684,13 @@ def process_analysis():
 
     # 🔢 등급별 점수화
     grade_points = []
+    medium_count = 0
     for g in grade_list:  # grade_list는 고정 검증 및 특약 분석에서 추출된 등급 문자열 리스트
         if g == '안전':
             grade_points.append(1)
         elif g == '주의':
-            # 주의는 등장 횟수마다 1점 추가 가중치
-            count = grade_points.count(3)
-            grade_points.append(3 + count)
+            medium_count += 1
+            grade_points.append(2 + medium_count)
         elif g == '위험':
             grade_points.append(5)
 
@@ -872,4 +867,3 @@ if __name__ == '__main__':
     # debug=True는 개발 중에만 사용하고, 실제 배포 시에는 False로 변경하거나 제거합니다.
     app.run(host='0.0.0.0', port=5000, debug=True)
     
-
