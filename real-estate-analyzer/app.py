@@ -1,5 +1,8 @@
-
 import os
+import sys
+
+# C++ 레벨 stderr 완전 차단
+sys.stderr = open(os.devnull, 'w')
 import cv2
 import re # ★★★[기능 추가] 텍스트 파싱을 위한 정규표현식 라이브러리
 import numpy as np
@@ -10,6 +13,9 @@ from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from datetime import datetime
+import warnings
+warnings.filterwarnings("ignore", message="Could not initialize NNPACK")
+
 
 # ★★★[기능 추가] Firebase 서버 연동을 위한 Admin SDK ★★★
 import firebase_admin
@@ -55,7 +61,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 # EasyOCR 리더 전역 변수로 초기화 (매번 로드하지 않도록)
 print("EasyOCR 리더를 초기화합니다...")
 # 커스텀 모델을 사용
-# .EasyOCR/model/finetuned.pth 경로에 커스텀 모델이 있어야 합니다.
+# .EasyOCR/model/finetuned.pth 경로에 커스텀 모델이 있어야 합니다..
 # 로컬에서 바닐라 모델로  돌릴 때는
 # reader = easyocr.Reader(['ko', 'en'], gpu=False, model_storage_directory=f"{home_dir}/.EasyOCR")
 # 커스텀 모델 용
@@ -301,11 +307,11 @@ def ocr_process():
         당신은 대한민국 부동산 임대차 계약서와 등기부등본을 분석해 **요약 정보**와 **특약사항**을 구분하여 제공하는 AI 전문가입니다.
         아래 OCR 텍스트를 바탕으로, 지정된 형식에 맞춰 **요약 정보**와 **특약사항**을 정확히 추출해주세요.
         괄호로 인식이 미비한 부분을 표시하지마세요.
-        
+        등기부등본 주소는 도로명 또는 지번 주소만 포함하고 동은 제외합니다.
+        예를 들어 서울특별시 서초구 서초대로 46길 60, 101동 201호(서초동, 서초아파트) 일 경우 서울특별시 서초구 서초대로 46길 60 로 표기합니다.
         요약 형식:
         --- 등기부등본 요약 ---
-        - 등기부등본 주소: (도로명 또는 지번 주소)
-        - 등기부등본 주소: (도로명 또는 지번 주소)
+        - 등기부등본 주소: (도로명 또는 지번 주소만)
         - 현재 소유자: OOO
         - 현재 소유자 주민등록번호: 주민등록번호
         - 근저당권: [설정 있음 / 없음]
@@ -317,7 +323,7 @@ def ocr_process():
         - 계약일: YYYY-MM-DD
         - 임대차 기간: YYYY-MM-DD ~ YYYY-MM-DD
         - 명도일: YYYY-MM-DD
-        - 계약주소: (도로명 또는 지번 주소)
+        - 계약주소: (도로명 또는 지번 주소만)
 
         금전 조건
         - 보증금: X,XXX,XXX원
@@ -327,14 +333,14 @@ def ocr_process():
 
         임차인/임대인 정보
         - 임대인: 성명
-        - 임대인 주소: (도로명 또는 지번 주소)
+        - 임대인 주소: (도로명 또는 지번 주소만)
         - 임대인 주민등록번호: 주민등록번호
         - 임대인 전화번호: 전화번호
         - 임대인 계좌정보: 은행명 / 계좌번호
         - 임차인: 성명 
         - 임차인 주민등록번호: 주민등록번호
         - 임차인 전화번호: 전화번호
-        - 임차인 주소: (도로명 또는 지번 주소)
+        - 임차인 주소: (도로명 또는 지번 주소만)
         - 비상 연락처: 성명
         - 비상 전화번호: 전화번호
         - 관계: (임대인과 임차인의 관계, 예: 가족, 친구 등)
@@ -497,7 +503,6 @@ def process_analysis():
 
     # ★★★[추가]위험 판단 로직 실행 (rule.rules 모듈 내 함수 기반으로 각 리스크 항목 평가) 
     
- 
  # ======================================================================
  # ★★★[추가]위험 판단 로직 실행 (rule.rules 모듈 내 함수 기반으로 각 리스크 항목 평가) 
  # ======================================================================
@@ -506,7 +511,6 @@ def process_analysis():
     market_price = None
     market_basis = None
     
-
     try:
         # === 입력 데이터 파싱 ===
         owner_name = parsed_data.get("owner_name")
@@ -555,6 +559,11 @@ def process_analysis():
             print("❌ 거래 시세 예측 실패:", e)
             market_price = None
             market_basis = "시세 예측 실패"
+            # 실패시 프론트엔드에 경고 출력 필
+            # logic_results['시세 예측 실패'] = {
+            #     "grade": "경고",
+            #     "message": f"거래 시세 예측에 실패했습니다: {str(e)}"
+            # }
 
         # # === 결과 포맷 정리 ===
         details = []
@@ -574,9 +583,6 @@ def process_analysis():
         "details": [],
         "error": f"위험 판단 로직 오류: {str(e)}"
     }), 500
-
-
-
 
     # 3. 특약사항 분석 (Gemini API 호출)
     clauses_analysis_result = "분석할 특약사항 없음"
@@ -601,9 +607,7 @@ def process_analysis():
             clauses_analysis_result = response.text
         except Exception as e:
             print(f"특약사항 분석 중 오류 발생: {e}")
-            clauses_analysis_result = "특약사항 분석 중 오류가 발생했습니다."
-
-    
+            clauses_analysis_result = "특약사항 분석 중 오류가 발생했습니다."   
 
     # 분석 결과를 JSON 형태로 응답 반환
     # - logic_results: 위험 판단 로직 결과 (근저당 여부, 보증금 초과 등)
@@ -615,26 +619,32 @@ def process_analysis():
         }
     }
     
-    
     # ★★★[기능 추가] 분석 결과를 Firestore에 저장 ★★★
     try:
+        # 프론트엔드에서 기록을 불러올 때 필요한 모든 정보를 포함하도록 구조 변경
         analysis_data_to_save = {
-            'summaryText': summary_text,      # 사용자가 확인/수정한 요약 원본 텍스트
-            # 'clausesText': clauses_text,      # 사용자가 확인/수정한 특약사항 원본 텍스트 후처리가 필요할것같아서 임시 보류
-            'analysisReport': final_result['verifications']['clauses_analysis'],   # AI가 생성한 최종 보고서만 입력
-            'createdAt': firestore.SERVER_TIMESTAMP # 분석 시간
+            'userInput': {
+                # 파싱된 데이터에서 계약 주소를 가져와 저장합니다.
+                'contract_addr': parsed_data.get('contract_addr', '주소 정보 없음') 
+            },
+            'summaryText': summary_text,
+            'clausesText': clauses_text, # 기록 불러오기 시 필요하므로 다시 추가
+            'analysisReport': final_result, # ★★★ 핵심 수정: 문자열이 아닌 전체 분석 결과 객체를 저장
+            'createdAt': firestore.SERVER_TIMESTAMP
         }
         # users/{uid}/analyses 컬렉션에 새로운 문서 추가
         db.collection('users').document(uid).collection('analyses').add(analysis_data_to_save)
         print(f"✅ Firestore에 분석 결과 저장 성공 (UID: {uid})")
+        
+        # 저장되는 데이터 구조를 디버깅용으로 확인
+        print(f"💾 저장된 데이터: {analysis_data_to_save}") 
+
     except Exception as e:
         print(f"🚨 Firestore 저장 실패: {e}")
         # 저장에 실패하더라도 사용자에게는 분석 결과를 보여줘야 하므로, 에러를 반환하지 않고 계속 진행합니다.
     
     # 6. 최종 결과를 프론트엔드에 반환
     return jsonify(final_result)
-
-
 
 # ======================================================================
 # 3. 앱 실행
