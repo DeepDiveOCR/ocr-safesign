@@ -1,9 +1,6 @@
-import os
-import sys
 
-# C++ 레벨 stderr 완전 차단
-sys.stderr = open(os.devnull, 'w')
 import cv2
+import os
 import re # ★★★[기능 추가] 텍스트 파싱을 위한 정규표현식 라이브러리
 import numpy as np
 import easyocr
@@ -13,8 +10,6 @@ from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from datetime import datetime
-import warnings
-warnings.filterwarnings("ignore", message="Could not initialize NNPACK")
 
 
 # ★★★[기능 추가] Firebase 서버 연동을 위한 Admin SDK ★★★
@@ -192,18 +187,33 @@ def enhance_image_for_ocr(image_path, output_path="enhanced_image.png"):
 # ======================================================================
 # ★★★ [구조 변경] 백엔드에서 텍스트를 파싱하는 핵심 함수 ★★★
 # ======================================================================
+
+
 def parse_summary_from_text(text):
-    """입력된 요약 텍스트 전체를 파싱하여 딕셔너리로 반환합니다."""
+    """
+    입력된 요약 텍스트 전체를 파싱하여 딕셔너리로 반환합니다. (최종 수정 버전)
+    """
     summary = {}
-    
+
+    # 1. (핵심) "계약내용 및"을 기준으로 파싱할 텍스트를 미리 잘라냅니다.
+    #    이후 모든 파싱은 잘라낸 텍스트 안에서만 이루어지므로 안전합니다.
+    parsing_text = text
+    markers = ["특약사항", "계약내용 및"]
+    for marker in markers:
+        cutoff_index = text.find(marker)
+        if cutoff_index != -1:
+            parsing_text = text[:cutoff_index]
+            break
+
     def extract_value(pattern, txt):
         match = re.search(pattern, txt, re.MULTILINE)
         return match.group(1).strip() if match else None
 
+    # 2. 유연한 정규식 패턴을 사용합니다.
     patterns = {
         "owner_name": r"현재 소유자:\s*(.*)",
         "has_mortgage": r"근저당권:\s*(.*)",
-        "mortgage_amount": r"채권최고액:\s*([\d,]+)원",
+        "mortgage_amount": r"채권최고액:\s*(.*)",
         "is_mortgage_cleared": r"말소 여부:\s*(.*)",
         "other_register_info": r"기타 등기사항:\s*(.*)",
         "contract_date": r"계약일:\s*(\d{4}-\d{2}-\d{2})",
@@ -211,41 +221,66 @@ def parse_summary_from_text(text):
         "handover_date": r"명도일:\s*(\d{4}-\d{2}-\d{2})",
         "contract_addr": r"계약주소:\s*(.*)",
         "register_addr": r"등기부등본 주소:\s*(.*)",
-        "register_addr": r"등기부등본 주소:\s*(.*)",
-        "deposit": r"보증금:\s*([\d,]+)원",
-        "monthly_rent": r"월세:\s*([\d,]+)원",
-        "maintenance_fee": r"관리비:\s*([\d,]+)원",
-        "included_fees": r"관리비 포함항목:\s*\[(.*)\]",
+        "deposit": r"보증금:\s*(.*)",
+        "monthly_rent": r"월세:\s*(.*)",
+        "maintenance_fee": r"관리비:\s*(.*)",
+        "included_fees": r"관리비 포함항목:\s*(.*)",
         "lessor_name": r"임대인:\s*(?!계좌정보)(.*)",
         "lessee_name": r"임차인:\s*(.*)",
         "lessor_account": r"임대인 계좌정보:\s*(.*)",
         "lessee_account": r"임차인 계좌정보:\s*(.*)",
-        "building_type": r"건물유형:\s*(.*)" #[추가] 
+        "building_type": r"건물유형:\s*(.*)"
     }
 
+    # 잘라낸 'parsing_text'를 대상으로만 값을 추출합니다.
     for key, pattern in patterns.items():
-        summary[key] = extract_value(pattern, text)
+        summary[key] = extract_value(pattern, parsing_text)
 
-    # 데이터 후처리 (문자열 -> 숫자/bool/리스트 등)
+    # 3. 강화된 후처리 로직으로 데이터를 정확하게 정리합니다.
     if summary.get("has_mortgage"):
-        summary["has_mortgage"] = "있음" in summary["has_mortgage"]
+        summary["has_mortgage"] = "있음" in summary["has_mortgage"] and "없음" not in summary["has_mortgage"]
     if summary.get("is_mortgage_cleared"):
-        summary["is_mortgage_cleared"] = "말소됨" in summary["is_mortgage_cleared"]
+        summary["is_mortgage_cleared"] = "말소" in summary["is_mortgage_cleared"]
+
+    # 금액 관련 필드 처리 (문자열에서 숫자만 정확히 추출)
     for key in ["mortgage_amount", "deposit", "monthly_rent", "maintenance_fee"]:
-        if summary.get(key):
-            try:
-                summary[key] = int(summary[key].replace(',', ''))
-            except (ValueError, TypeError):
-                summary[key] = 0 # 숫자로 변환 실패 시 0으로 처리
+        value_str = summary.get(key)
+        if value_str:
+            numeric_match = re.search(r'([\d,]+)', value_str)
+            if numeric_match:
+                try:
+                    summary[key] = int(numeric_match.group(1).replace(',', ''))
+                except (ValueError, TypeError):
+                    summary[key] = 0
+            else: # 숫자 부분이 아예 없는 경우 (예: "정보 없음")
+                summary[key] = 0
+        else: # 키 자체가 없는 경우
+             summary[key] = 0
+
     if summary.get("lease_period"):
         parts = summary["lease_period"].split('~')
         if len(parts) == 2:
             summary["lease_period"] = (parts[0].strip(), parts[1].strip())
+            
     if summary.get("included_fees"):
-        summary["included_fees"] = [fee.strip() for fee in summary["included_fees"].split(',')]
-    
-    return summary
+        # "정보 없음" 등의 텍스트를 고려하여 처리
+        if '정보' in summary["included_fees"] or not summary["included_fees"]:
+            summary["included_fees"] = []
+        else:
+            summary["included_fees"] = [fee.strip() for fee in summary["included_fees"].split(',')]
 
+    # 특약사항 부분은 원본 텍스트 전체에서 다시 찾아 저장합니다.
+    clause_block_match = re.search(r"(특약사항|계약내용 및)[\s\S]*", text)
+    if clause_block_match:
+        summary["clauses"] = clause_block_match.group(0).strip()
+    else:
+        summary["clauses"] = "특약사항 없음"
+        
+    # 기존 코드와의 호환성을 위해 'clauses_raw', 'clauses_cleaned' 유지
+    summary["clauses_raw"] = summary["clauses"]
+    summary["clauses_cleaned"] = summary["clauses"]
+        
+    return summary
 # ======================================================================
 # 2. Flask 라우트(경로) 정의
 # ======================================================================
@@ -293,81 +328,79 @@ def ocr_process():
         con_text = "\n".join([res[1] for res in con_results])
         
         if not model: return jsonify({'error': 'Gemini API가 초기화되지 않았습니다.'}), 500
-            
-        full_ocr_text = f"[등기부등본 OCR 결과]\n{reg_text}\n\n[계약서 OCR 결과]\n{con_text}"
-        
-        # 프롬프트
-        full_ocr_text = f"[등기부등본 OCR 결과]\n{reg_text}\n\n[계약서 OCR 결과]\n{con_text}"
-        
-        print("✅ OCR 결과 텍스트 생성 완료.")
-        print(full_ocr_text)
 
         # 프롬프트
         prompt = f"""
-        당신은 대한민국 부동산 임대차 계약서와 등기부등본을 분석해 **요약 정보**와 **특약사항**을 구분하여 제공하는 AI 전문가입니다.
-        아래 OCR 텍스트를 바탕으로, 지정된 형식에 맞춰 **요약 정보**와 **특약사항**을 정확히 추출해주세요.
-        괄호로 인식이 미비한 부분을 표시하지마세요.
+        당신은 대한민국 부동산 임대차 계약서와 등기부등본을 분석해 **요약 정보**와 **계약내용 및 특약사항**을 구분하여 제공하는 AI 전문가입니다.
+        아래 OCR 텍스트를 바탕으로, 지정된 형식에 맞춰 **요약 정보**와 **계약내용 및 특약사항**을 정확히 추출해주세요.
         등기부등본 주소는 도로명 또는 지번 주소만 포함하고 동은 제외합니다.
         예를 들어 서울특별시 서초구 서초대로 46길 60, 101동 201호(서초동, 서초아파트) 일 경우 서울특별시 서초구 서초대로 46길 60 로 표기합니다.
+        주어진 형식에서 정보를 추가하거나 ()로 묶어서 추정하지 마세요.
+        만약 주소가 서울특별시 서초구 서초대로 46길 60 와 같이 온전한 형식이 아닌, 진해구 이동 649-12 와 같은 축약형일 경우 정규화 시켜주세요
+        
         요약 형식:
+
         --- 등기부등본 요약 ---
-        - 등기부등본 주소: (도로명 또는 지번 주소만)
+        - 등기부등본 주소: xxx도 xxx시 xxx구 xx동 xx-xx (도로명 또는 지번 주소만 동과 호수는 제외)
         - 현재 소유자: OOO
-        - 현재 소유자 주민등록번호: 주민등록번호
         - 근저당권: [설정 있음 / 없음]
         - 채권최고액: XX,XXX,XXX원
         - 말소 여부: [말소됨 / 유지]
 
         --- 계약서 요약 ---
         계약 기본정보
+        - 계약주소: xxx도 xxx시 xxx구 xx동 xx-xx (도로명 또는 지번 주소만 동과 호수는 제외)
         - 계약일: YYYY-MM-DD
         - 임대차 기간: YYYY-MM-DD ~ YYYY-MM-DD
         - 명도일: YYYY-MM-DD
-        - 계약주소: (도로명 또는 지번 주소만)
+        
 
         금전 조건
-        - 보증금: X,XXX,XXX원
-        - 월세: XX,XXX원
-        - 관리비: XX,XXX원
+        - 보증금: X,XXX,XXX원 ([한글 보증금])
+        - 월세: XX,XXX원 ([한글 월세])
+        - 관리비: XX,XXX원 ([한글 관리비])
         - 관리비 포함항목: [인터넷, 전기, 수도 등]
 
         임차인/임대인 정보
         - 임대인: 성명
-        - 임대인 주소: (도로명 또는 지번 주소만)
-        - 임대인 주민등록번호: 주민등록번호
-        - 임대인 전화번호: 전화번호
         - 임대인 계좌정보: 은행명 / 계좌번호
         - 임차인: 성명 
-        - 임차인 주민등록번호: 주민등록번호
-        - 임차인 전화번호: 전화번호
-        - 임차인 주소: (도로명 또는 지번 주소만)
-        - 비상 연락처: 성명
-        - 비상 전화번호: 전화번호
-        - 관계: (임대인과 임차인의 관계, 예: 가족, 친구 등)
 
-        특약사항
-        - (모든 특약 조항을 그대로 나열, 없으면 '특약사항 없음'으로 표기)
-
+        계약내용 및 특약사항
+        - 계약내용
+        제 1조: [계약내용]
+        제 2조: [계약내용]
+        등등...
         --- OCR 텍스트 ---
         등기부등본 텍스트: {reg_text}
         계약서 텍스트: {con_text}
         ---
         """
+
+        # [최종 분석]
+        # - 아래 문단은 최종 분석을 포함하는 매우 중요한 항목입니다.
+        # - 이 항목은 절대 생략하지 말고 반드시 작성해야 합니다.
+        # - 누락되면 전체 응답이 무효 처리됩니다.
+        # - 아래의 지시를 반드시 따르세요.
+        # - 점수 기준에 따라 '위험', '주의', '안전' 중 하나로 최종 등급을 판단하세요.
+        # - 등급 판단 사유를 자연스럽고 신뢰도 있게 설명하는 문장으로 서술해 주세요.
+        # - 최종 분석 항목으로, 전체 계약서를 종합적으로 평가한 결과를 서술해 주세요.
+
         response = model.generate_content(prompt)
+        # 🔍 Gemini 응답 전체 확인
+        print("🔍 Gemini 응답 전체:\n", response.text)
         full_corrected_text = response.text
 
-        # ★★★ [구조 변경] Gemini가 생성한 텍스트를 '요약'과 '특약사항'으로 분리
-        summary_part = ""
-        clauses_part = "특약사항 없음" # 기본값
-        
-        split_keyword = "특약사항"
+        # ★★★ [구조 변경] Gemini가 생성한 텍스트를 '요약'과 '특약사항'과 '최종 분석 '으로 분리
+        split_keyword = "계약내용 및 특약사항"
         if split_keyword in full_corrected_text:
             parts = full_corrected_text.split(split_keyword, 1)
             summary_part = parts[0].strip()
             clauses_part = (split_keyword + parts[1]).strip()
         else:
             summary_part = full_corrected_text.strip()
-        
+            clauses_part = "특약사항 없음"
+
         # 분리된 텍스트를 각각 JSON으로 반환
         return jsonify({
             'summary_text': summary_part,
@@ -455,6 +488,9 @@ def process_analysis():
     clauses_text = data.get('clauses_text')
     uid = data.get('uid') # ★★★[기능 추가] 프론트로부터 UID 수신
 
+    # === [최종 분석] 블록 추출 ===
+    import re
+
     if not summary_text:
         return jsonify({'error': '분석할 요약 내용이 없습니다.'}), 400
     if not uid:
@@ -501,6 +537,11 @@ def process_analysis():
 
     print("--- [종합 분석] 변수 개별 확인 종료 ---\n")
 
+    # =========================
+    # 특약사항 텍스트 최종 결정 및 로그 추가
+    # =========================
+    print("🧾 분석할 특약사항 최종 내용:\n", clauses_text)
+
     # ★★★[추가]위험 판단 로직 실행 (rule.rules 모듈 내 함수 기반으로 각 리스크 항목 평가) 
     
  # ======================================================================
@@ -525,24 +566,29 @@ def process_analysis():
         is_mortgage_cleared = parsed_data.get("is_mortgage_cleared")
         mortgage_amount = parsed_data.get("mortgage_amount")
 
-         # === 디버깅 로그 ===
-        print("[디버깅] owner_name:", owner_name)
-        print("[디버깅] lessor_name:", lessor_name)
-        print("[디버깅] deposit:", deposit)
-        print("[디버깅] register_addr:", register_addr)
-        print("[디버깅] contract_addr:", contract_addr)
-        print("[디버깅] building_type:", building_type)
-        
         # === 위험 요소 판단 ===
+        # --- 임대인-소유주 일치 메시지 생성 부분 확인용 ---
         if owner_name and lessor_name:
-            logic_results['임대인-소유주 일치'] = check_owner_match(owner_name, lessor_name)
-            
+            import re
+            def extract_name_only(text):
+                # Remove any parenthesized content
+                cleaned = re.sub(r'\s*\(.*?\)', '', text).strip()
+                # Keep only the part before the first comma
+                return cleaned.split(',')[0].strip()
+            owner_name_only = extract_name_only(owner_name)
+            lessor_name_only = extract_name_only(lessor_name)
+            print("[검증] 임대인-소유주 일치 비교 대상 이름만:")
+            print("  owner_name:", owner_name_only)
+            print("  lessor_name:", lessor_name_only)
+            logic_results['임대인-소유주 일치'] = check_owner_match(owner_name_only, lessor_name_only)
+        # --- END 임대인-소유주 일치 메시지 생성 부분 ---
+
         if has_mortgage is not None and is_mortgage_cleared is not None:
             logic_results['근저당 위험'] = check_mortgage_risk(has_mortgage, is_mortgage_cleared)
 
         if register_addr and contract_addr:
             logic_results['주소 일치 여부'] = compare_address(register_addr, contract_addr, confm_key)
-        
+
         # === 시세 예측 (실패해도 나머지 계속 진행) ===
         try:
             print("💬 시세 예측 시작:", contract_addr, building_type)
@@ -574,7 +620,7 @@ def process_analysis():
                     "grade":result["grade"],
                     "message": result["message"]
                 })
-        
+
     except Exception as e:
         print(f"오류오류 오류: {e}")
         return jsonify({
@@ -584,53 +630,269 @@ def process_analysis():
         "error": f"위험 판단 로직 오류: {str(e)}"
     }), 500
 
-    # 3. 특약사항 분석 (Gemini API 호출)
+
+    # 2. clauses_text 결정 로직 및 로그 출력
+    import re as _re
+    if clauses_text and not _re.search(r"^특약사항\s*(없음|없습니다|없다)$", clauses_text.strip()):
+        print("🧾 프론트에서 받은 clauses_text 사용")
+    elif parsed_data.get("clauses_cleaned") and not _re.search(r"^특약사항\s*(없음|없습니다|없다)$", parsed_data["clauses_cleaned"].strip()):
+        clauses_text = parsed_data["clauses_cleaned"]
+        print("🧾 요약에서 추출한 clauses_cleaned 사용")
+    else:
+        clauses_text = "특약사항 없음"
+        print("🧾 사용할 특약사항 없음")
+
+    # 3. 특약사항 분석 및 최종 코멘트 생성
     clauses_analysis_result = "분석할 특약사항 없음"
     if clauses_text and "특약사항 없음" not in clauses_text:
         if not model: return jsonify({'error': 'Gemini API가 초기화되지 않았습니다.'}), 500
         try:
             prompt = f"""
-            당신은 대한민국 부동산 법률 전문가입니다. 아래 특약사항을 '임차인'의 입장에서 분석하고, 잠재적 위험요소를 찾아 리포트를 작성해주세요.
+            당신은 대한민국 부동산 계약의 법률 전문가입니다.
+            아래 '특약사항 텍스트'를 임차인의 입장에서 분석하되, 위험 판단은 객관적인 사실과 조문 해석에 기반하여 균형 잡힌 어조로 작성해주세요. 과도하게 높은 위험 등급 표시는 자제하고, 실제로 분쟁 가능성이 있는 부분만 명확하게 지적해 주세요.
 
-            [특약사항 내용]
+            1. 특약사항 위험 분석 (HTML 카드)
+            - 제공된 텍스트의 각 조항을 분석하여, 결과를 아래 예시 같은 HTML 카드 형식으로만 출력합니다.
+            - 카드 외 다른 텍스트(인사말, 서론, 요약)는 포함하지 마세요.
+            - 위험도 클래스는 `risk-high`(위험), `risk-medium`(주의), `risk-low`(낮음) 세 가지를 사용합니다.
+            [HTML 카드 예시]
+            <div class="risk-card">
+            <div class="risk-title"><b>1.</b> 조항 내용...</div>
+            <div class="risk-badge risk-high">🚨 위험</div>
+            <div class="risk-desc">위험 설명 및 조치 제안...</div>
+            </div>
+
+            2. 최종 코멘트 (마무리 멘트)
+            - 분석 내용을 바탕으로 객관적이고 간결한 어투로 2~3문장 의견을 작성하세요.
+            - 과도한 경고를 피하고, 실제로 조치가 필요한 부분만 강조해 주세요.
+            - 반드시 `### 최종 코멘트` 제목으로 시작합니다.
+
+            [분석할 특약사항 텍스트]
             {clauses_text}
-            [/특약사항 내용]
-
-            [분석 및 출력 가이드라인]
-            1. **위험 조항 식별**: 임차인에게 불리한 조항을 모두 찾아내세요.
-            2. **위험도 평가**: 각 위험 조항에 대해 '위험도: 높음', '위험도: 중간', '위험도: 낮음' 형식으로 명확하게 평가해주세요.
-            3. **최종 요약 (가장 중요)**: "### 최종 요약" 제목으로, 가장 치명적인 위험 2~3개를 언급하며 최종 결론을 2문장 이내로 간결하게 요약해주세요.
-
-            위 가이드라인에 따라 특약사항 분석 리포트를 작성해주세요.
             """
             response = model.generate_content(prompt)
             clauses_analysis_result = response.text
+            # ★★★[추가] Gemini 응답이 ```html ~ ``` 마크다운 코드블럭으로 감싸져 있을 경우 제거
+            import re
+            clauses_analysis_result = re.sub(r"```html\s*([\s\S]*?)\s*```", r"\1", clauses_analysis_result).strip()
         except Exception as e:
             print(f"특약사항 분석 중 오류 발생: {e}")
-            clauses_analysis_result = "특약사항 분석 중 오류가 발생했습니다."   
+            clauses_analysis_result = "특약사항 분석 중 오류가 발생했습니다."
 
-    # 분석 결과를 JSON 형태로 응답 반환
-    # - logic_results: 위험 판단 로직 결과 (근저당 여부, 보증금 초과 등)
-    # - clauses_analysis: 특약사항 분석 결과 (LLM 또는 규칙 기반 처리)
+    # 🔢 [수정] 등급별 점수 설정 및 평균 계산
+    print("\n--- [최종 등급 산출] 시작 ---")
+    # 1. grade_list를 모든 핵심 검증 및 특약 분석에서 추출된 등급 문자열 리스트로 구성
+    grade_list = []
+    logic_items_to_score = [
+        '임대인-소유주 일치',
+        '주소 일치 여부',
+        '시세 대비 보증금 위험',
+        '보증금 대비 채권최고액 위험'
+    ]
+    for key in logic_items_to_score:
+        result = logic_results.get(key)
+        if result and 'grade' in result:
+            grade_list.append(result['grade'])
+    # 특약사항 분석 등급 추출
+    clauses_grade = None
+    if '위험도: 높음' in clauses_analysis_result:
+        clauses_grade = '위험'
+    elif '위험도: 중간' in clauses_analysis_result:
+        clauses_grade = '주의'
+    elif '위험도: 낮음' in clauses_analysis_result:
+        clauses_grade = '안전'
+    elif "특약사항 없음" in clauses_analysis_result or "특이사항이 발견되지 않았습니다" in clauses_analysis_result:
+        clauses_grade = '안전'
+    # 특약사항 분석에서 여러 개의 등급이 존재할 수 있는 경우, BeautifulSoup로 모두 추출
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(clauses_analysis_result, "html.parser")
+        risk_cards = soup.find_all("div", class_="risk-card")
+        for card in risk_cards:
+            badge = card.find("div", class_="risk-badge")
+            if badge:
+                if "risk-high" in badge.get("class", []):
+                    grade_list.append("위험")
+                elif "risk-medium" in badge.get("class", []):
+                    grade_list.append("주의")
+                elif "risk-low" in badge.get("class", []):
+                    grade_list.append("안전")
+    except Exception as e:
+        # fallback: 단일 등급만 추가
+        if clauses_grade:
+            grade_list.append(clauses_grade)
+
+    # === 등급별 분류 ===
+    high_grades = [g for g in grade_list if g == '위험']
+    medium_grades = [g for g in grade_list if g == '주의']
+    low_grades = [g for g in grade_list if g == '안전']
+    all_grades = high_grades + medium_grades + low_grades
+
+    # 🔢 등급별 점수화
+    grade_points = []
+    medium_count = 0
+    for g in grade_list:  # grade_list는 고정 검증 및 특약 분석에서 추출된 등급 문자열 리스트
+        if g == '안전':
+            grade_points.append(1)
+        elif g == '주의':
+            medium_count += 1
+            grade_points.append(2 + medium_count)
+        elif g == '위험':
+            grade_points.append(5)
+
+    if grade_points:
+        avg_score = sum(grade_points) / len(grade_points)
+    else:
+        avg_score = 0
+
+    # 🏆 [수정] 평균 점수 기반 최종 등급 결정
+    if avg_score <= 2.0:
+        final_grade = '안전'
+    elif avg_score <= 4.0:
+        final_grade = '주의'
+    else:
+        final_grade = '위험'
+    print("---")
+    print(f"🔢 계산된 전체 등급 리스트: {grade_list}")
+    print(f"🔢 계산된 전체 점수 리스트: {grade_points}")
+    print(f"📊 최종 평균 점수: {avg_score:.2f}")
+    print(f"🏆 최종 산출 등급: {final_grade}")
+    print("--- [최종 등급 산출] 종료 ---\n")
+
+    # ★★★[추가] 등급 판단 사유 생성 로직 ★★★
+    if final_grade == '위험':
+        judgment_reason = (
+            "등급 판단 사유: 다수의 위험 등급 항목이 발견되었습니다. "
+            "보증금 미반환 가능성이 높으며, 반드시 법률 전문가의 검토 후 계약 여부를 결정해야 합니다."
+        )
+    elif final_grade == '주의':
+        judgment_reason = (
+            "등급 판단 사유: 일부 항목에서 주의가 필요한 내용이 확인되었습니다. "
+            "계약 전 세부 조항을 임대인과 충분히 협의하고 문제를 명확히 해야 합니다."
+        )
+    elif final_grade == '안전':
+        judgment_reason = (
+            "등급 판단 사유: 특이사항 없이 비교적 안전한 계약으로 판단됩니다. "
+            "단, 계약 내용은 끝까지 꼼꼼히 검토하시기 바랍니다."
+        )
+    else:
+        judgment_reason = "등급 판단 사유: 분석된 항목이 부족하여 정확한 등급을 산출할 수 없습니다."
+
+    print(f"[디버깅] judgment_reason: {judgment_reason}")
+
+    # ======================================================================
+    # [추가] 평균 점수 산출을 위한 all_grades 기반 weighted score 계산
+    # ======================================================================
+    # --- all_grades는 모든 위험 평가의 등급 문자열 리스트로 구성 (grade_list와 유사, 혹은 동일 사용)
+    all_grades = grade_list.copy()
+    # Calculate weighted score for final grade
+    grade_scores = []
+    attention_score = 3
+    for grade in all_grades:
+        if grade == '안전':
+            grade_scores.append(1)
+        elif grade == '주의':
+            grade_scores.append(attention_score)
+            attention_score += 1
+        elif grade == '위험':
+            grade_scores.append(5)
+    average_score = round(sum(grade_scores) / len(grade_scores), 2) if grade_scores else 0
+
+    # 💡 카드형 UI 변환 및 요약 박스 추가
+    def convert_clause_analysis_to_cards(raw_text, high=0, medium=0, low=0):
+        summary_html = f"""
+<div class="summary-box" style="background-color: #f8f9fa; border: 1px solid #ddd; border-radius: 10px; padding: 20px; margin-bottom: 20px;">
+  <p style="margin: 0; font-weight: bold;">분석 대상 수: {high + medium + low}개</p>
+  <ul style="list-style: none; padding-left: 0; margin-top: 10px;">
+    <li>- 위험 등급 높음: {high}개</li>
+    <li>- 주의 등급: {medium}개</li>
+    <li>- 안전 등급: {low}개</li>
+  </ul>
+</div>
+"""
+        card_html = ""
+        blocks = raw_text.strip().split("<div class=\"risk-card\">")
+        for block in blocks[1:]:
+            block_content = block.split("</div>", 1)[0]
+            card_html += f"<div class=\"risk-card\">{block_content}</div>\n"
+        return summary_html + card_html
+
+    # --- 분석 결과 요약 summary HTML 제거 및 카드형 UI 변환 ---
+    high_count = sum(1 for d in details if d['grade'] == '위험')
+    medium_count = sum(1 for d in details if d['grade'] == '주의')
+    low_count = sum(1 for d in details if d['grade'] == '안전')
+
+    clauses_analysis_html = convert_clause_analysis_to_cards(clauses_analysis_result, high=high_count, medium=medium_count, low=low_count)
+    print("✅ 카드형 UI 변환 완료")
+    # --- 특약사항 위험 카드 개수 카운트 (BeautifulSoup 기반으로 변경) ---
+    print("🔍 등급 카운팅 시작 (BeautifulSoup 기반)")
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(clauses_analysis_result, "html.parser")
+        risk_cards = soup.find_all("div", class_="risk-card")
+        clauses_count = len(risk_cards)
+        risk_high_count = 0
+        risk_medium_count = 0
+        risk_low_count = 0
+        for card in risk_cards:
+            badge = card.find("div", class_="risk-badge")
+            if badge:
+                badge_class = badge.get("class", [])
+                if "risk-high" in badge_class:
+                    risk_high_count += 1
+                elif "risk-medium" in badge_class:
+                    risk_medium_count += 1
+                elif "risk-low" in badge_class:
+                    risk_low_count += 1
+        print(f"✅ 위험 카드 수: {risk_high_count}")
+        print(f"✅ 주의 카드 수: {risk_medium_count}")
+        print(f"✅ 안전 카드 수: {risk_low_count}")
+    except Exception as e:
+        print(f"🚨 BeautifulSoup 카드 카운팅 오류: {e}")
+        clauses_count = 0
+        risk_high_count = 0
+        risk_medium_count = 0
+        risk_low_count = 0
+
     final_result = {
         "verifications": {
-        "logic_results": logic_results,
-        "clauses_analysis": clauses_analysis_result
+            "logic_results": logic_results,
+            "clauses_analysis": clauses_analysis_result,
+            "clauses_html": clauses_analysis_html,  # 카드형 HTML
+            # --- 아래 줄을 추가: 원본 Gemini 생성 결과(HTML)를 그대로 반환 ---
+            "clauses_html": clauses_analysis_result,
+            "final_grade": final_grade,
+            "final_clauses_grade": clauses_grade,
+            "average_score": average_score,
+            "grade_scores": grade_scores,
+            # === 특약 위험 카드 카운트 ===
+            "clauses_count": clauses_count,
+            "risk_high_count": risk_high_count,
+            "risk_medium_count": risk_medium_count,
+            "risk_low_count": risk_low_count,
+            
+        },
+        "evaluation": {
+            "scores": grade_scores,
+            "average_score": round(average_score, 2),
+            "final_grade": final_grade,
+            "judgment_reason": judgment_reason  # ★★★[추가]
         }
     }
-    
+
     # ★★★[기능 추가] 분석 결과를 Firestore에 저장 ★★★
     try:
         # 프론트엔드에서 기록을 불러올 때 필요한 모든 정보를 포함하도록 구조 변경
         analysis_data_to_save = {
-            'userInput': {
+           'userInput': {
                 # 파싱된 데이터에서 계약 주소를 가져와 저장합니다.
                 'contract_addr': parsed_data.get('contract_addr', '주소 정보 없음') 
             },
-            'summaryText': summary_text,
-            'clausesText': clauses_text, # 기록 불러오기 시 필요하므로 다시 추가
-            'analysisReport': final_result, # ★★★ 핵심 수정: 문자열이 아닌 전체 분석 결과 객체를 저장
-            'createdAt': firestore.SERVER_TIMESTAMP
+            'summaryText': summary_text,      # 사용자가 확인/수정한 요약 원본 텍스트
+            'clausesText': clauses_text,      # ★★★[수정] 이 부분의 주석을 해제하여 특약사항 텍스트도 저장합니다.
+            'analysisReport': clauses_analysis_html,   # AI가 생성한 최종 카드형 HTML 보고서 저장
+            'createdAt': firestore.SERVER_TIMESTAMP, # 분석 시간
+            'parsedData': parsed_data
         }
         # users/{uid}/analyses 컬렉션에 새로운 문서 추가
         db.collection('users').document(uid).collection('analyses').add(analysis_data_to_save)
@@ -642,8 +904,12 @@ def process_analysis():
     except Exception as e:
         print(f"🚨 Firestore 저장 실패: {e}")
         # 저장에 실패하더라도 사용자에게는 분석 결과를 보여줘야 하므로, 에러를 반환하지 않고 계속 진행합니다.
-    
+
     # 6. 최종 결과를 프론트엔드에 반환
+    # analysis_result dict에 final_risk_level도 추가 (호환성)
+    analysis_result = final_result
+    if "verifications" in analysis_result:
+        analysis_result["verifications"]["final_risk_level"] = final_grade
     return jsonify(final_result)
 
 # ======================================================================
@@ -652,6 +918,5 @@ def process_analysis():
 if __name__ == '__main__':
     # host='0.0.0.0'는 외부에서 접속 가능하게 함
     # debug=True는 개발 중에만 사용하고, 실제 배포 시에는 False로 변경하거나 제거합니다.
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)
     
-
