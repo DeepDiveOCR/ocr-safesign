@@ -1,6 +1,6 @@
 
-import os
 import cv2
+import os
 import re # ★★★[기능 추가] 텍스트 파싱을 위한 정규표현식 라이브러리
 import numpy as np
 import easyocr
@@ -10,6 +10,7 @@ from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from datetime import datetime
+
 
 # ★★★[기능 추가] Firebase 서버 연동을 위한 Admin SDK ★★★
 import firebase_admin
@@ -54,9 +55,21 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 # EasyOCR 리더 전역 변수로 초기화 (매번 로드하지 않도록)
 # EasyOCR 리더 전역 변수로 초기화 (매번 로드하지 않도록)
 print("EasyOCR 리더를 초기화합니다...")
-home_dir = os.path.expanduser("~")
-reader = easyocr.Reader(['ko', 'en'], gpu=False, model_storage_directory=f"{home_dir}/.EasyOCR")
-print("✅ EasyOCR 리더 초기화 완료.")
+# 커스텀 모델을 사용
+# .EasyOCR/model/finetuned.pth 경로에 커스텀 모델이 있어야 합니다..
+# 로컬에서 바닐라 모델로  돌릴 때는
+# reader = easyocr.Reader(['ko', 'en'], gpu=False, model_storage_directory=f"{home_dir}/.EasyOCR")
+# 커스텀 모델 용
+reader = easyocr.Reader(
+    ['ko'],
+    model_storage_directory='.EasyOCR/model',
+    user_network_directory='.EasyOCR/user_network',
+    recog_network='finetuned',
+    download_enabled=False,
+    gpu=False
+)
+
+print("✅ EasyOCR 리더 초기화 완료 (커스텀 모델: finetuned).")
 
 # Gemini 모델 설정
 # Gemini 모델 설정
@@ -291,56 +304,60 @@ def ocr_process():
         if not model: return jsonify({'error': 'Gemini API가 초기화되지 않았습니다.'}), 500
             
         full_ocr_text = f"[등기부등본 OCR 결과]\n{reg_text}\n\n[계약서 OCR 결과]\n{con_text}"
+
         # 프롬프트
         prompt = f"""
-당신은 대한민국 부동산 임대차 계약서와 등기부등본을 분석해 **요약 정보**와 **특약사항**을 구분하여 제공하는 AI 전문가입니다.
-아래 OCR 텍스트를 바탕으로, 지정된 형식에 맞춰 **요약 정보**와 **특약사항**을 정확히 추출해주세요.
+        당신은 대한민국 부동산 임대차 계약서와 등기부등본을 분석해 **요약 정보**와 **특약사항**을 구분하여 제공하는 AI 전문가입니다.
+        아래 OCR 텍스트를 바탕으로, 지정된 형식에 맞춰 **요약 정보**와 **특약사항**을 정확히 추출해주세요.
+        등기부등본 주소는 도로명 또는 지번 주소만 포함하고 동은 제외합니다.
+        예를 들어 서울특별시 서초구 서초대로 46길 60, 101동 201호(서초동, 서초아파트) 일 경우 서울특별시 서초구 서초대로 46길 60 로 표기합니다.
 
-요약 형식:
---- 등기부등본 요약 ---
-- 등기부등본 주소: (도로명 또는 지번 주소)
-- 현재 소유자: OOO
-- 근저당권: [설정 있음 / 없음]
-- 채권최고액: XX,XXX,XXX원
-- 말소 여부: [말소됨 / 유지]
-- 기타 등기사항: (간략 요약)
+        요약 형식:
+        --- 등기부등본 요약 ---
+        - 등기부등본 주소: (도로명 또는 지번 주소)
+        - 현재 소유자: OOO
+        - 근저당권: [설정 있음 / 없음]
+        - 채권최고액: XX,XXX,XXX원
+        - 말소 여부: [말소됨 / 유지]
+        - 기타 등기사항: (간략 요약)
 
---- 계약서 요약 ---
-계약 기본정보
-- 계약일: YYYY-MM-DD
-- 임대차 기간: YYYY-MM-DD ~ YYYY-MM-DD
-- 명도일: YYYY-MM-DD
-- 계약주소: (도로명 또는 지번 주소)
+        --- 계약서 요약 ---
+        계약 기본정보
+        - 계약일: YYYY-MM-DD
+        - 임대차 기간: YYYY-MM-DD ~ YYYY-MM-DD
+        - 명도일: YYYY-MM-DD
+        - 계약주소: (도로명 또는 지번 주소)
 
-금전 조건
-- 보증금: X,XXX,XXX원
-- 월세: XX,XXX원
-- 관리비: XX,XXX원
-- 관리비 포함항목: [인터넷, 전기, 수도 등]
+        금전 조건
+        - 보증금: X,XXX,XXX원
+        - 월세: XX,XXX원
+        - 관리비: XX,XXX원
+        - 관리비 포함항목: [인터넷, 전기, 수도 등]
 
-임차인/임대인 정보
-- 임대인: 성명 
-- 임차인: 성명 
-- 임대인 계좌정보: 은행명 / 계좌번호
-- 비상 연락처: 성명 / 전화번호
+        임차인/임대인 정보
+        - 임대인: 성명 
+        - 임차인: 성명 
+        - 임대인 계좌정보: 은행명 / 계좌번호
+        - 비상 연락처: 성명 / 전화번호
 
-특약사항
-- (모든 특약 조항을 그대로 나열, 없으면 '특약사항 없음'으로 표기)
+        특약사항
+        - (모든 특약 조항을 그대로 나열, 없으면 '특약사항 없음'으로 표기)
 
---- OCR 텍스트 ---
-등기부등본 텍스트: {reg_text}
-계약서 텍스트: {con_text}
----
+        --- OCR 텍스트 ---
+        등기부등본 텍스트: {reg_text}
+        계약서 텍스트: {con_text}
+        ---
 
-[최종 분석]
-- 아래 문단은 최종 분석을 포함하는 매우 중요한 항목입니다.
-- 이 항목은 절대 생략하지 말고 반드시 작성해야 합니다.
-- 누락되면 전체 응답이 무효 처리됩니다.
-- 아래의 지시를 반드시 따르세요.
-- 점수 기준에 따라 '위험', '주의', '안전' 중 하나로 최종 등급을 판단하세요.
-- 등급 판단 사유를 자연스럽고 신뢰도 있게 설명하는 문장으로 서술해 주세요.
-- 최종 분석 항목으로, 전체 계약서를 종합적으로 평가한 결과를 서술해 주세요.
-"""
+        [최종 분석]
+        - 아래 문단은 최종 분석을 포함하는 매우 중요한 항목입니다.
+        - 이 항목은 절대 생략하지 말고 반드시 작성해야 합니다.
+        - 누락되면 전체 응답이 무효 처리됩니다.
+        - 아래의 지시를 반드시 따르세요.
+        - 점수 기준에 따라 '위험', '주의', '안전' 중 하나로 최종 등급을 판단하세요.
+        - 등급 판단 사유를 자연스럽고 신뢰도 있게 설명하는 문장으로 서술해 주세요.
+        - 최종 분석 항목으로, 전체 계약서를 종합적으로 평가한 결과를 서술해 주세요.
+        """
+
         response = model.generate_content(prompt)
         # 🔍 Gemini 응답 전체 확인
         print("🔍 Gemini 응답 전체:\n", response.text)
@@ -499,7 +516,6 @@ def process_analysis():
 
     # ★★★[추가]위험 판단 로직 실행 (rule.rules 모듈 내 함수 기반으로 각 리스크 항목 평가) 
     
- 
  # ======================================================================
  # ★★★[추가]위험 판단 로직 실행 (rule.rules 모듈 내 함수 기반으로 각 리스크 항목 평가) 
  # ======================================================================
@@ -508,7 +524,6 @@ def process_analysis():
     market_price = None
     market_basis = None
     
-
     try:
         # === 입력 데이터 파싱 ===
         owner_name = parsed_data.get("owner_name")
@@ -562,6 +577,11 @@ def process_analysis():
             print("❌ 거래 시세 예측 실패:", e)
             market_price = None
             market_basis = "시세 예측 실패"
+            # 실패시 프론트엔드에 경고 출력 필
+            # logic_results['시세 예측 실패'] = {
+            #     "grade": "경고",
+            #     "message": f"거래 시세 예측에 실패했습니다: {str(e)}"
+            # }
 
         # # === 결과 포맷 정리 ===
         details = []
@@ -581,8 +601,6 @@ def process_analysis():
         "details": [],
         "error": f"위험 판단 로직 오류: {str(e)}"
     }), 500
-
-
 
 
     # 2. clauses_text 결정 로직 및 로그 출력
@@ -836,7 +854,12 @@ def process_analysis():
 
     # ★★★[기능 추가] 분석 결과를 Firestore에 저장 ★★★
     try:
+        # 프론트엔드에서 기록을 불러올 때 필요한 모든 정보를 포함하도록 구조 변경
         analysis_data_to_save = {
+           'userInput': {
+                # 파싱된 데이터에서 계약 주소를 가져와 저장합니다.
+                'contract_addr': parsed_data.get('contract_addr', '주소 정보 없음') 
+            },
             'summaryText': summary_text,      # 사용자가 확인/수정한 요약 원본 텍스트
             'clausesText': clauses_text,      # ★★★[수정] 이 부분의 주석을 해제하여 특약사항 텍스트도 저장합니다.
             'analysisReport': clauses_analysis_html,   # AI가 생성한 최종 카드형 HTML 보고서 저장
@@ -846,6 +869,10 @@ def process_analysis():
         # users/{uid}/analyses 컬렉션에 새로운 문서 추가
         db.collection('users').document(uid).collection('analyses').add(analysis_data_to_save)
         print(f"✅ Firestore에 분석 결과 저장 성공 (UID: {uid})")
+        
+        # 저장되는 데이터 구조를 디버깅용으로 확인
+        print(f"💾 저장된 데이터: {analysis_data_to_save}") 
+
     except Exception as e:
         print(f"🚨 Firestore 저장 실패: {e}")
         # 저장에 실패하더라도 사용자에게는 분석 결과를 보여줘야 하므로, 에러를 반환하지 않고 계속 진행합니다.
@@ -856,8 +883,6 @@ def process_analysis():
     if "verifications" in analysis_result:
         analysis_result["verifications"]["final_risk_level"] = final_grade
     return jsonify(final_result)
-
-
 
 # ======================================================================
 # 3. 앱 실행
