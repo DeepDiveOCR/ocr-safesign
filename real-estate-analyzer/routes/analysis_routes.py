@@ -5,7 +5,7 @@ from flask import Blueprint, request, jsonify, render_template # type: ignore
 from werkzeug.utils import secure_filename # type: ignore
 from bs4 import BeautifulSoup # type: ignore
 from firebase_admin import auth, firestore # type: ignore
-
+from pdf2image import convert_from_path # type: ignore
 
 # 설정 및 유틸리티 함수 임포트
 from config import app, reader, model, db, confm_key
@@ -15,10 +15,36 @@ from rule.rules import check_owner_match, check_mortgage_risk, check_deposit_ove
 from estimator.median_price import estimate_median_trade
 
 analysis_bp = Blueprint('analysis', __name__)
+# poppler_path = 'C:/ocr-safesign/real-estate-analyzer/poppler/Library/bin'
+poppler_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'poppler', 'Library', 'bin'))
 
 @analysis_bp.route('/')
 def index():
     return render_template('index.html')
+
+def save_pdf_as_images(pdf_path, save_dir, prefix, poppler_path):
+    images = convert_from_path(pdf_path, poppler_path=poppler_path)
+    image_paths = []
+    for i, image in enumerate(images):
+        img_path = os.path.join(save_dir, f"{prefix}_page_{i+1}.png")
+        image.save(img_path, 'PNG')
+        image_paths.append(img_path)
+    return image_paths
+
+def ocr_images(image_paths, enhance_prefix):
+    all_text = []
+    enhanced_paths = []
+    for idx, img_path in enumerate(image_paths):
+        # 확장자 강제 부여
+        enhance_name = f"{enhance_prefix}_page_{idx+1}.png"
+        enhanced_path, _ = enhance_image_for_ocr(img_path, enhance_name)
+        if not enhanced_path:
+            continue
+        enhanced_paths.append(enhanced_path)
+        results = reader.readtext(enhanced_path)
+        page_text = "\n".join([res[1] for res in results])
+        all_text.append(page_text)
+    return "\n".join(all_text), enhanced_paths
 
 @analysis_bp.route('/ocr', methods=['POST'])
 def ocr_process():
@@ -29,7 +55,6 @@ def ocr_process():
     contract_file = request.files['contractFile']
     
     # 파일 임시 저장
-    # 파일 임시 저장
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
     register_filename = f"{timestamp}_register_{secure_filename(register_file.filename)}"
@@ -39,21 +64,36 @@ def ocr_process():
     register_file.save(register_path)
     contract_file.save(contract_path)
 
-    try:
-        # --- 등기부등본 처리 ---
-        # --- 등기부등본 처리 ---
+    reg_text = None
+    con_text = None
+    reg_enhanced_paths = []
+    con_enhanced_paths = []
+    reg_image_paths = [register_path]
+    con_image_paths = [contract_path]
+
+    if register_file.filename.lower().endswith('.pdf'):
+        reg_image_paths = save_pdf_as_images(register_path, app.config['UPLOAD_FOLDER'], "register", poppler_path)
+        reg_text, reg_enhanced_paths = ocr_images(reg_image_paths, f"enhanced_{register_filename}")
+    else:
         enhanced_reg_path, _ = enhance_image_for_ocr(register_path, f"enhanced_{register_filename}")
-        if not enhanced_reg_path: raise Exception("등기부등본 이미지 처리 실패")
+        reg_enhanced_paths = [enhanced_reg_path] if enhanced_reg_path else []
         reg_results = reader.readtext(enhanced_reg_path)
         reg_text = "\n".join([res[1] for res in reg_results])
 
-        # --- 계약서 처리 ---
-        # --- 계약서 처리 ---
+    if contract_file.filename.lower().endswith('.pdf'):
+        con_image_paths = save_pdf_as_images(contract_path, app.config['UPLOAD_FOLDER'], "contract", poppler_path)
+        con_text, con_enhanced_paths = ocr_images(con_image_paths, f"enhanced_{contract_filename}")
+    else:
         enhanced_con_path, _ = enhance_image_for_ocr(contract_path, f"enhanced_{contract_filename}")
-        if not enhanced_con_path: raise Exception("계약서 이미지 처리 실패")
+        con_enhanced_paths = [enhanced_con_path] if enhanced_con_path else []
         con_results = reader.readtext(enhanced_con_path)
         con_text = "\n".join([res[1] for res in con_results])
-        
+
+    try:
+        # PDF/이미지 분기에서 이미 reg_text, con_text가 준비됨
+        if not reg_text or not con_text:
+            raise Exception("OCR 텍스트 추출 실패")
+        # 이하 기존 Gemini 프롬프트 및 분석 로직...
         if not model: return jsonify({'error': 'Gemini API가 초기화되지 않았습니다.'}), 500
 
         # 프롬프트
@@ -139,14 +179,20 @@ def ocr_process():
         return jsonify({'error': f'서버 내부 오류 발생: {e}'}), 500
     
     finally:
-        # try/except 블록이 끝나면 항상 임시 파일들을 삭제합니다.
-        # try/except 블록이 끝나면 항상 임시 파일들을 삭제합니다.
-        if os.path.exists(register_path): os.remove(register_path)
-        if os.path.exists(contract_path): os.remove(contract_path)
-        # 전처리된 파일들도 삭제
-        # 전처리된 파일들도 삭제
-        if 'enhanced_reg_path' in locals() and os.path.exists(enhanced_reg_path): os.remove(enhanced_reg_path)
-        if 'enhanced_con_path' in locals() and os.path.exists(enhanced_con_path): os.remove(enhanced_con_path)
+        # 변환된 이미지들 삭제
+        for p in reg_image_paths:
+            if os.path.exists(p): os.remove(p)
+        for p in con_image_paths:
+            if os.path.exists(p): os.remove(p)
+        for p in reg_enhanced_paths:
+            if os.path.exists(p): os.remove(p)
+        for p in con_enhanced_paths:
+            if os.path.exists(p): os.remove(p)
+        # 원본 PDF 파일도 삭제
+        if os.path.exists(register_path):
+            os.remove(register_path)
+        if os.path.exists(contract_path):
+            os.remove(contract_path)
 
 @analysis_bp.route('/process-analysis', methods=['POST'])
 def process_analysis():
@@ -583,3 +629,4 @@ def process_analysis():
     if "verifications" in analysis_result:
         analysis_result["verifications"]["final_risk_level"] = final_grade
     return jsonify(final_result)
+ 

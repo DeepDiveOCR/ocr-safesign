@@ -35,3 +35,4 @@ torchvision
 torchaudio
 
 beautifulsoup4==4.13.4
+pdf2image

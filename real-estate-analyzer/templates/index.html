@@ -101,6 +101,11 @@
                                             <line x1="18" y1="6" x2="6" y2="18"></line>
                                             <line x1="6" y1="6" x2="18" y2="18"></line>
                                         </svg></button>
+                                    <!-- PDF 썸네일/미리보기 (등기부등본) -->
+                                    <div id="register-pdf-preview" class="hidden flex flex-col items-center cursor-pointer mt-2">
+                                        <img src="/static/pdf_icon.png" alt="PDF 아이콘" style="width:48px;height:48px;">
+                                        <span id="register-pdf-filename" class="text-xs mt-1"></span>
+                                    </div>
                                 </div>
                             </div>
                             <div>
@@ -353,6 +358,14 @@
         <p class="text-xs text-gray-500 mt-1">정확한 법적 효력을 갖는 문서는 반드시 원본 계약서와 등기부등본을 참고해야 합니다.</p>
         <p class="text-xs text-gray-500 mt-1">이 서비스는 전세사기 예방을 위한 참고용으로만 사용해주세요.</p>
     </footer>
+
+    <!-- PDF 미리보기 모달 -->
+    <div id="pdf-modal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);z-index:1000;">
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:20px;max-width:90vw;max-height:90vh;">
+        <span id="close-pdf-modal" style="cursor:pointer;float:right;font-size:24px;">&times;</span>
+        <iframe id="pdf-frame" src="" width="600" height="800" style="max-width:80vw;max-height:80vh;"></iframe>
+      </div>
+    </div>
 
     <script src="/static/main.js"></script>
 </body>

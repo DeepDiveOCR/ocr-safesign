@@ -111,8 +111,8 @@ function resetAnalysisState() {
     appState = 'initial';
     registerFile = null;
     contractFile = null;
-    displayPreview(null, registerPreview, registerPlaceholder, registerDeleteBtn);
-    displayPreview(null, contractPreview, contractPlaceholder, contractDeleteBtn);
+    displayPreview(null, registerPreview, registerPlaceholder, registerDeleteBtn, null, null);
+    displayPreview(null, contractPreview, contractPlaceholder, contractDeleteBtn, null, null);
     ocrResults.value = "";
     originalClausesText = "";
     analysisResultView.classList.add('hidden');

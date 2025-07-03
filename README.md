@@ -284,3 +284,18 @@ python app.py
 
 이 프로젝트는 MIT 라이선스 하에 배포됩니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
 
+## 외부 라이브러리 및 리소스 출처
+
+| 라이브러리/리소스 | 용도 | 라이선스 | 공식 출처 |
+|:---:|:---|:---:|:---|
+| [EasyOCR](https://github.com/JaidedAI/EasyOCR) | 이미지 내 한글 텍스트 인식 | Apache-2.0 | https://github.com/JaidedAI/EasyOCR |
+| [pdf2image](https://github.com/Belval/pdf2image) | PDF → 이미지 변환 (Python) | MIT | https://github.com/Belval/pdf2image |
+| [Poppler for Windows](https://github.com/oschwartz10612/poppler-windows) | PDF → 이미지 변환 (바이너리) | MIT | https://github.com/oschwartz10612/poppler-windows |
+| [OpenCV](https://opencv.org/) | 이미지 전처리 | Apache-2.0 | https://opencv.org/ |
+| [Firebase Admin SDK](https://firebase.google.com/docs/admin/setup) | 인증/DB | Apache-2.0 | https://firebase.google.com/ |
+| [Tailwind CSS](https://tailwindcss.com/) | 프론트엔드 스타일링 | MIT | https://tailwindcss.com/ |
+
+- **Poppler 설치 안내**:  
+  Poppler 바이너리는 직접 [공식 저장소](https://github.com/oschwartz10612/poppler-windows)에서 다운로드하여 `real-estate-analyzer/` 폴더에 위치시켜야 합니다.  
+  자세한 라이선스 내용은 [Poppler LICENSE](https://github.com/oschwartz10612/poppler-windows/blob/master/LICENSE) 참고.
+
