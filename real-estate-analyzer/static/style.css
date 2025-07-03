@@ -148,4 +148,79 @@ body {
     border-left: 1px solid #e5e7eb;
     border-top: 1px solid #e5e7eb;
     transform: rotate(45deg);
+}
+
+/* ★★★[추가] 진행 상황 표시 애니메이션 ★★★ */
+@keyframes progressPulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+@keyframes stepComplete {
+    0% {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.progress-pulse {
+    animation: progressPulse 2s ease-in-out infinite;
+}
+
+.step-complete {
+    animation: stepComplete 0.5s ease-out;
+}
+
+/* 진행 상황 섹션 스타일 */
+#progress-section {
+    transition: all 0.3s ease-in-out;
+}
+
+#progress-bar {
+    transition: width 0.8s ease-out;
+}
+
+#status-spinner {
+    animation: spin 1s linear infinite;
+}
+
+/* 단계별 아이콘 애니메이션 */
+#progress-steps .flex {
+    transition: all 0.3s ease-in-out;
+}
+
+#progress-steps .flex:hover {
+    transform: translateX(4px);
+}
+
+/* 완료된 단계 스타일 */
+.step-completed {
+    background: linear-gradient(135deg, #10b981, #059669);
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
+/* 현재 진행 중인 단계 스타일 */
+.step-current {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+}
+
+/* 대기 중인 단계 스타일 */
+.step-waiting {
+    background: #f3f4f6;
+    border-color: #d1d5db;
 } 

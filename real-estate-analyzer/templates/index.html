@@ -135,7 +135,7 @@
                         </div>
                         <div>
                             <div class="flex justify-between items-center mb-2">
-                                <h3 class="text-lg font-medium text-gray-700">AI 보정 결과 (수정 가능)</h3><button id="edit-btn"
+                                <h3 class="text-lg font-medium text-gray-700">문서 인식 결과 (수정 가능)</h3><button id="edit-btn"
                                     class="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors">수정</button>
                             </div>
                             <textarea id="ocr-results" rows="12"
@@ -217,6 +217,55 @@
                             </svg>
                             <p class="font-semibold text-lg">분석 대기 중</p>
                             <p id="placeholder-text" class="mt-1 text-sm">왼쪽에서 서류를 업로드하고<br>분석을 시작해주세요.</p>
+                        </div>
+
+                        <!-- 진행 상황 표시 섹션 -->
+                        <div id="progress-section" class="hidden mb-6">
+                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h3 class="text-lg font-semibold text-blue-800">분석 진행 상황</h3>
+                                    <span id="progress-percentage" class="text-sm font-medium text-blue-600">0%</span>
+                                </div>
+                                
+                                <!-- Progress Bar -->
+                                <div class="w-full bg-blue-200 rounded-full h-3 mb-3">
+                                    <div id="progress-bar" class="bg-blue-600 h-3 rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
+                                </div>
+                                
+                                <!-- Status Text -->
+                                <div class="flex items-center">
+                                    <div id="status-spinner" class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
+                                    <span id="status-text" class="text-sm font-medium text-blue-700">대기 중...</span>
+                                </div>
+                                
+                                <!-- 단계별 진행 상황 -->
+                                <div id="progress-steps" class="mt-4 space-y-2">
+                                    <div class="flex items-center">
+                                        <div id="step1-icon" class="w-5 h-5 rounded-full border-2 border-gray-300 mr-3 flex items-center justify-center">
+                                            <span class="text-xs text-gray-500">1</span>
+                                        </div>
+                                        <span id="step1-text" class="text-sm text-gray-600">문서 인식 중...</span>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <div id="step2-icon" class="w-5 h-5 rounded-full border-2 border-gray-300 mr-3 flex items-center justify-center">
+                                            <span class="text-xs text-gray-500">2</span>
+                                        </div>
+                                        <span id="step2-text" class="text-sm text-gray-600">부동산 시세 조회 중...</span>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <div id="step3-icon" class="w-5 h-5 rounded-full border-2 border-gray-300 mr-3 flex items-center justify-center">
+                                            <span class="text-xs text-gray-500">3</span>
+                                        </div>
+                                        <span id="step3-text" class="text-sm text-gray-600">문서 분석 중...</span>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <div id="step4-icon" class="w-5 h-5 rounded-full border-2 border-gray-300 mr-3 flex items-center justify-center">
+                                            <span class="text-xs text-gray-500">4</span>
+                                        </div>
+                                        <span id="step4-text" class="text-sm text-gray-600">최종 리포트 작성 중...</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div id="analysis-result-view" class="hidden flex-grow flex-col overflow-auto space-y-6">

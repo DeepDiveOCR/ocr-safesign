@@ -33,6 +33,16 @@ let appState = 'initial', registerFile = null, contractFile = null;
 let originalClausesText = "";
 let historyDataMap = new Map();
 
+// 진행 상황 관리 변수들
+let currentProgress = 0;
+let currentStep = 0;
+const progressSteps = [
+    { name: '문서 인식 중...', percentage: 25 },
+    { name: '부동산 시세 조회 중...', percentage: 50 },
+    { name: '문서 분석 중...', percentage: 75 },
+    { name: '최종 리포트 작성 중...', percentage: 100 }
+];
+
 auth.onAuthStateChanged(user => {
     if (user) {
         currentUser = {
@@ -107,7 +117,69 @@ function resetAnalysisState() {
     originalClausesText = "";
     analysisResultView.classList.add('hidden');
     analysisPlaceholder.classList.remove('hidden');
+    hideProgressSection();
     updateUI();
+}
+
+// 진행 상황 표시 함수들
+function showProgressSection() {
+    const progressSection = document.getElementById('progress-section');
+    progressSection.classList.remove('hidden');
+    analysisPlaceholder.classList.add('hidden');
+}
+
+function hideProgressSection() {
+    const progressSection = document.getElementById('progress-section');
+    progressSection.classList.add('hidden');
+    currentProgress = 0;
+    currentStep = 0;
+    updateProgressUI();
+}
+
+function updateProgress(step, customMessage = null) {
+    currentStep = step;
+    const stepData = progressSteps[step];
+    currentProgress = stepData.percentage;
+    
+    updateProgressUI(customMessage || stepData.name);
+}
+
+function updateProgressUI(statusMessage = null) {
+    const progressBar = document.getElementById('progress-bar');
+    const progressPercentage = document.getElementById('progress-percentage');
+    const statusText = document.getElementById('status-text');
+    
+    // Progress bar 업데이트
+    progressBar.style.width = `${currentProgress}%`;
+    progressPercentage.textContent = `${currentProgress}%`;
+    
+    // Status text 업데이트
+    if (statusMessage) {
+        statusText.textContent = statusMessage;
+    }
+    
+    // 단계별 아이콘 업데이트
+    for (let i = 0; i < 4; i++) {
+        const stepIcon = document.getElementById(`step${i+1}-icon`);
+        const stepText = document.getElementById(`step${i+1}-text`);
+        
+        if (i < currentStep) {
+            // 완료된 단계
+            stepIcon.className = 'w-5 h-5 rounded-full bg-green-500 border-2 border-green-500 mr-3 flex items-center justify-center step-complete';
+            stepIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+            stepText.className = 'text-sm text-green-600 font-medium';
+        } else if (i === currentStep) {
+            // 현재 단계
+            stepIcon.className = 'w-5 h-5 rounded-full bg-blue-500 border-2 border-blue-500 mr-3 flex items-center justify-center progress-pulse';
+            stepIcon.innerHTML = '<div class="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>';
+            stepText.className = 'text-sm text-blue-600 font-medium';
+        } else {
+            // 대기 중인 단계
+            stepIcon.className = 'w-5 h-5 rounded-full border-2 border-gray-300 mr-3 flex items-center justify-center';
+            stepIcon.innerHTML = `<span class="text-xs text-gray-500">${i+1}</span>`;
+            stepText.className = 'text-sm text-gray-600';
+        }
+    }
 }
 
 async function fetchAndDisplayHistory(uid) {
@@ -276,6 +348,11 @@ actionBtn.addEventListener('click', () => {
         actionBtn.disabled = true;
         actionSpinner.classList.remove('hidden');
         actionBtnText.textContent = 'AI로 텍스트 보정 중...';
+        
+        // 진행 상황 표시 시작
+        showProgressSection();
+        updateProgress(0, '문서 인식 중...');
+        
         const formData = new FormData();
         formData.append('registerFile', registerFile);
         formData.append('contractFile', contractFile);
@@ -294,12 +371,19 @@ actionBtn.addEventListener('click', () => {
                     ocrResults.value = data.summary_text;
                     originalClausesText = data.clauses_text;
                     appState = 'ocr_done';
+                    
+                    // OCR 완료 표시
+                    updateProgress(0, '문서 인식 완료');
+                    setTimeout(() => {
+                        hideProgressSection();
+                    }, 1000);
                 }
             })
             .catch(error => {
                 console.error('Fetch Error:', error);
                 alert('텍스트 추출 중 오류가 발생했습니다. 서버 로그를 확인하거나 잠시 후 다시 시도해주세요.');
                 appState = 'files_uploaded';
+                hideProgressSection();
             })
             .finally(() => {
                 actionSpinner.classList.add('hidden');
@@ -310,6 +394,11 @@ actionBtn.addEventListener('click', () => {
         actionBtn.disabled = true;
         actionSpinner.classList.remove('hidden');
         actionBtnText.textContent = '종합 분석 중...';
+        
+        // 진행 상황 표시 시작
+        showProgressSection();
+        updateProgress(1, '부동산 시세 조회 중...');
+        
         const finalSummaryText = ocrResults.value;
 
         fetch('/process-analysis', {
@@ -328,15 +417,28 @@ actionBtn.addEventListener('click', () => {
         .then(result => {
             if (result.error) {
                 alert('분석 오류: ' + result.error);
+                hideProgressSection();
             } else {
-                displayAnalysisResults(result);
-                appState = 'analysis_done';
-                fetchAndDisplayHistory(currentUser.uid);
+                // 단계별 진행 상황 표시
+                updateProgress(2, '문서 분석 중...');
+                setTimeout(() => {
+                    updateProgress(3, '최종 리포트 작성 중...');
+                    setTimeout(() => {
+                        updateProgress(3, '최종 리포트 작성 완료!');
+                        setTimeout(() => {
+                            hideProgressSection();
+                            displayAnalysisResults(result);
+                            appState = 'analysis_done';
+                            fetchAndDisplayHistory(currentUser.uid);
+                        }, 500);
+                    }, 1000);
+                }, 1000);
             }
         })
         .catch(error => {
             console.error('Fetch Error:', error);
             alert('분석 중 오류가 발생했습니다: ' + error.message);
+            hideProgressSection();
         })
         .finally(() => {
             actionSpinner.classList.add('hidden');
