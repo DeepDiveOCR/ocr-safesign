@@ -28,6 +28,7 @@ def parse_summary_from_text(text):
         "is_mortgage_cleared": r"말소 여부:\s*(.*)",
         "other_register_info": r"기타 등기사항:\s*(.*)",
         "contract_date": r"계약일:\s*(\d{4}-\d{2}-\d{2})",
+        "total_area": r"면적:\s*(.*)",
         "lease_period": r"임대차 기간:\s*(.*)",
         "handover_date": r"명도일:\s*(\d{4}-\d{2}-\d{2})",
         "contract_addr": r"계약주소:\s*(.*)",
@@ -46,6 +47,22 @@ def parse_summary_from_text(text):
     # 잘라낸 'parsing_text'를 대상으로만 값을 추출합니다.
     for key, pattern in patterns.items():
         summary[key] = extract_value(pattern, parsing_text)
+
+    # 면적 단위 변환 (항상 평 단위로 저장)
+    if summary.get("total_area"):
+        area_str = str(summary["total_area"])
+        # 숫자와 단위 분리 (㎡, m2, 제곱미터, 평, py, pyeong 등 모두 인식)
+        area_match = re.match(r"([\d\.]+)\s*(㎡|m2|제곱미터|평|py|pyeong)?", area_str, re.IGNORECASE)
+        if area_match:
+            area_value = float(area_match.group(1))
+            area_unit = area_match.group(2)
+            if area_unit and area_unit.strip() in ["㎡", "m2", "제곱미터"]:
+                summary["total_area"] = round(area_value / 3.305785, 2)  # 1평 = 3.305785㎡
+            else:
+                # 평, py, pyeong, 단위 없음 등은 평으로 간주
+                summary["total_area"] = round(area_value, 2)
+        else:
+            summary["total_area"] = 0
 
     # 3. 강화된 후처리 로직으로 데이터를 정확하게 정리합니다.
     if summary.get("has_mortgage"):
