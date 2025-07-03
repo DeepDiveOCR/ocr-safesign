@@ -21,7 +21,7 @@ __pycache__/
 # 운영체제에서 자동으로 생성하는 파일입니다. (macOS, Windows)
 .DS_Store
 Thumbs.db
-.EasyOCR
+
 
 # Test files
 # 임시 테스트 파일은 저장소에 포함하지 않습니다.
