@@ -190,11 +190,10 @@ python app.py
 
 이 프로젝트는 다음 팀원들의 협력으로 개발되었습니다:
 
-- **최정훈** - [@Jeonghoonchoi74](https://github.com/Jeonghoonchoi74)
-- **안효서** - [@pokqok](https://github.com/pokqok)
-- **박지연** - [@jiyeon22](https://github.com/jiyeon22)
-- **이서준** - [@seojun133](https://github.com/seojun133)
-- **이재진** - [@LeeJaeJin00](https://github.com/LeeJaeJin00)
+| 최정훈 | 안효서 | 박지연 | 이서준 | 이재진 |
+|--------|--------|--------|--------|--------|
+| [![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Jeonghoonchoi74) | [![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/pokqok) | [![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/jiyeon22) | [![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/seojun133) | [![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/LeeJaeJin00) |
+| [@Jeonghoonchoi74](https://github.com/Jeonghoonchoi74) | [@pokqok](https://github.com/pokqok) | [@jiyeon22](https://github.com/jiyeon22) | [@seojun133](https://github.com/seojun133) | [@LeeJaeJin00](https://github.com/LeeJaeJin00) |
 
 ## 라이선스
 
