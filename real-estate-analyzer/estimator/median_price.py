@@ -3,6 +3,11 @@ import pandas as pd
 from xml.etree import ElementTree as ET
 from datetime import datetime, timedelta
 import re
+import os
+from dotenv import load_dotenv
+
+# 환경변수 로드
+load_dotenv()
 
 # 주소 파싱
 def parse_address(address):
@@ -36,7 +41,7 @@ def parse_address(address):
 def get_region_prefix(region_name):
     url = "http://apis.data.go.kr/1741000/StanReginCd/getStanReginCdList"
     params = {
-        'ServiceKey': "7vMdnzTpnFnBO5wPN3LkHyPgPNFu3A/w/+RH8EJw3ihZfuhA5UiMx4x/PYl1qjlCx1VAzTL+i2GJXf1c/oHfyg==",
+        'ServiceKey': os.getenv('SERVICEKEY'),
         'type': 'json',
         'pageNo': '1',
         'numOfRows': '1000',
@@ -82,7 +87,7 @@ def get_deals(lawd_cd, target_dong, target_jibun, building_type, yyyymm, log_typ
 
     while True:
         params = {
-            "serviceKey": "7vMdnzTpnFnBO5wPN3LkHyPgPNFu3A/w/+RH8EJw3ihZfuhA5UiMx4x/PYl1qjlCx1VAzTL+i2GJXf1c/oHfyg==",
+            "serviceKey": os.getenv('SERVICEKEY'),
             "LAWD_CD": lawd_cd,
             "DEAL_YMD": yyyymm,
             "numOfRows": "1000",

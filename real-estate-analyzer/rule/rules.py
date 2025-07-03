@@ -104,14 +104,22 @@ def compare_address(contract_addr, register_addr, confm_key):
             "is_risk": False,
             "grade": "안전",
             "type": "주소 일치 여부",
-            "message": "✅ 지번주소 또는 동/호수까지 모두 일치합니다.",
+            "message": (
+                f"✅ 지번주소 또는 동/호수까지 모두 일치합니다.\n"
+                f"계약서: {contract_norm} {contract_dongho}\n"
+                f"등기부: {register_norm} {register_dongho}\n"
+            ),
         }
     else:
         return {
             "is_risk": True,
             "grade": "위험",
             "type": "주소 일치 여부",
-            "message": f"📛 주소 또는 동/호수 불일치\n계약서: {contract_norm} {contract_dongho}\n 등기부: {register_norm} {register_dongho}",
+            "message": (
+                f"📛 주소 또는 동/호수 불일치.\n"
+                f"계약서: {contract_norm} {contract_dongho}\n"
+                f"등기부: {register_norm} {register_dongho}\n"
+            ),
         }
 
 # ----------------------------------------------------
@@ -180,15 +188,30 @@ def check_deposit_over_market(deposit, market_price):
 
     if ratio >= 0.9:
         grade = "위험"
-        msg = "📛전세보증금이 매매가의 90% 이상입니다. \n 깡통 전세 가능성이 있는 위험 매물입니다."
+        msg = (
+            f"📛전세보증금이 매매가의 90% 이상입니다.\n"
+            f"깡통 전세 가능성이 있는 위험 매물입니다.\n"
+            f"비교 대상 평당 시세: {market_price:,.0f}원\n"
+            f"계약서상 평당 보증금: {deposit:,.0f}원\n"
+        )
         is_risk = True
     elif ratio >= 0.8:
         grade = "주의"
-        msg = "⚠️전세보증금이 매매가의 80% 이상입니다. \n 주의가 필요합니다."
+        msg = (
+            f"⚠️전세보증금이 매매가의 80% 이상입니다.\n"
+            f"주의가 필요합니다.\n"
+            f"비교 대상 평당 시세: {market_price:,.0f}원\n"
+            f"계약서상 평당 보증금: {deposit:,.0f}원\n"
+        )
         is_risk = True
     elif ratio < 0.7:
         grade = "안전"
-        msg = "✅전세보증금이 매매가의 70% 이하입니다. \n 상대적으로 안정적인 매물입니다."
+        msg = (
+            f"✅전세보증금이 매매가의 70% 이하입니다.\n"
+            f"상대적으로 안정적인 매물입니다.\n"
+            f"비교 대상 평당 시세: {market_price:,.0f}원\n"
+            f"계약서상 평당 보증금: {deposit:,.0f}원\n"
+        )
         is_risk = False
     else:
         grade = None

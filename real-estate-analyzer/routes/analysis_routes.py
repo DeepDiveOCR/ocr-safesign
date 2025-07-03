@@ -80,7 +80,7 @@ def ocr_process():
         - 계약일: YYYY-MM-DD
         - 임대차 기간: YYYY-MM-DD ~ YYYY-MM-DD
         - 명도일: YYYY-MM-DD
-        
+        - 면적: XX ㎡ 인지 평 인지 표기기
 
         금전 조건
         - 보증금: X,XXX,XXX원 ([한글 보증금])
@@ -186,6 +186,7 @@ def process_analysis():
     print(f"✅ 임대차 기간: {parsed_data.get('lease_period')}, 타입: {type(parsed_data.get('lease_period'))}")
     print(f"✅ 명도일: {parsed_data.get('handover_date')}, 타입: {type(parsed_data.get('handover_date'))}")
     print(f"✅ 계약주소: {parsed_data.get('contract_addr')}, 타입: {type(parsed_data.get('contract_addr'))}")
+    print(f"✅ 면적: {parsed_data.get('total_area')}, 타입: {type(parsed_data.get('total_area'))}")
 
     print("---")
 
@@ -218,6 +219,8 @@ def process_analysis():
 
     market_price = None
     market_basis = None
+
+    market_price = None
     
     try:
         # === 입력 데이터 파싱 ===
@@ -232,6 +235,7 @@ def process_analysis():
         has_mortgage = parsed_data.get("has_mortgage")
         is_mortgage_cleared = parsed_data.get("is_mortgage_cleared")
         mortgage_amount = parsed_data.get("mortgage_amount")
+        total_area = parsed_data.get("total_area")
 
         # === 위험 요소 판단 ===
         # --- 임대인-소유주 일치 메시지 생성 부분 확인용 ---
@@ -263,10 +267,12 @@ def process_analysis():
             print("✅ 시세 예측 완료:", market_price, market_basis)
 
             if deposit and market_price:
-                logic_results['시세 대비 보증금 위험'] = check_deposit_over_market(deposit, market_price)
+                final_deposit = deposit / total_area
+                print(f"final_deposit: {final_deposit}")
+                logic_results['시세 대비 보증금 위험'] = check_deposit_over_market(final_deposit, market_price)
 
             if deposit and mortgage_amount:
-                logic_results['보증금 대비 채권최고액 위험'] = check_mortgage_vs_deposit(deposit, market_price, mortgage_amount)
+                logic_results['보증금 대비 채권최고액 위험'] = check_mortgage_vs_deposit(final_deposit, market_price, mortgage_amount)
 
         except Exception as e:
             print("❌ 거래 시세 예측 실패:", e)
@@ -279,6 +285,7 @@ def process_analysis():
             # }
 
         # # === 결과 포맷 정리 ===
+        print(f"market_price: {market_price}")
         details = []
         for key, result in logic_results.items():
             if result and isinstance(result, dict) and result.get("grade"):
