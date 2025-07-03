@@ -27,4 +27,5 @@ Thumbs.db
 # 임시 테스트 파일은 저장소에 포함하지 않습니다.
 test.txt
 firebase-debug.log
-firebase-credentials.json
+firebase-credentials.json../ProjectProposal/
+../streamlit_test.py
