@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 부동산 서류 분석기</title>
+    <title>SafeSign</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap"
@@ -35,12 +35,19 @@
                     로그아웃
                 </button>
             </div>
+            <button id="help-btn" class="mt-2 bg-blue-100 text-blue-700 font-semibold py-2 px-4 rounded-lg hover:bg-blue-200 transition-colors flex items-center w-full">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+                사용방법 보기
+            </button>
         </div>
 
         <header class="mb-8 text-center">
-            <h1 class="text-3xl sm:text-4xl font-bold text-gray-900">AI 부동산 계약 분석 시스템</h1>
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-900">부동산 계약 분석 시스템</h1>
             <p class="mt-2 text-md text-gray-600">임대차 계약서와 등기부등본을 업로드하여 전세사기 위험도를 탐지하세요.</p>
-            <!-- ★★★[삭제] 법적 고지 문구는 하단으로 이동했습니다. ★★★ -->
         </header>
 
         <div id="login-overlay" class="hidden absolute inset-0 bg-gray-900 bg-opacity-30 flex items-center justify-center z-20"
@@ -160,6 +167,44 @@
                                 class="hidden bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors shadow-sm">
                                 이전 문서
                             </button>
+                        </div>
+
+                        <!-- 사용방법 말풍선 모달 -->
+                        <div id="help-tooltip" class="hidden absolute top-16 right-0 bg-white border border-gray-200 rounded-lg shadow-xl p-6 max-w-sm z-30 transform transition-all duration-300 ease-in-out">
+                            <div class="absolute -top-2 right-6 w-4 h-4 bg-white border-l border-t border-gray-200 transform rotate-45"></div>
+                            <div class="flex justify-between items-start mb-4">
+                                <h3 class="text-lg font-semibold text-gray-800">사용방법</h3>
+                                <button id="close-help-btn" class="text-gray-400 hover:text-gray-600">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="space-y-4 text-sm text-gray-700">
+                                <div>
+                                    <h4 class="font-semibold text-blue-600 mb-2">📄 필요한 서류</h4>
+                                    <ul class="space-y-1 ml-2">
+                                        <li>• 등기부등본 (인터넷등기소에서 발급)</li>
+                                        <li>• 부동산 계약서</li>
+                                    </ul>
+                                    <p class="text-xs text-gray-500 mt-1">💡 등기부등본 발급 시 '현재유효사항' 체크 필수</p>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-green-600 mb-2">🔍 분석 과정</h4>
+                                    <ol class="space-y-1 ml-2">
+                                        <li>1. 서류 업로드</li>
+                                        <li>2. "AI로 텍스트 추출 및 보정" 클릭</li>
+                                        <li>3. 추출된 내용 검토 및 수정</li>
+                                        <li>4. "종합 분석 실행" 클릭</li>
+                                    </ol>
+                                </div>
+                                <div class="bg-yellow-50 p-3 rounded-lg">
+                                    <p class="text-xs text-yellow-800">
+                                        ⚠️ 모든 요약은 참고용이며, 사용자의 검토와 수정이 필수입니다.
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
                         <div id="analysis-placeholder"

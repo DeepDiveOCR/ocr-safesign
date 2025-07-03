@@ -113,4 +113,39 @@ body {
     border-radius: 0.75rem;
     background-color: #f3f4f6; /* 회색 계열 배경 */
     border: 1px solid #d1d5db; /* 회색 계열 테두리 */
+}
+
+/* ★★★[추가] 사용방법 모달 애니메이션 ★★★ */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* 사용방법 말풍선 스타일 */
+#help-tooltip {
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 10px 10px -5px rgb(0 0 0 / 0.04);
+    border: 1px solid #e5e7eb;
+}
+
+#help-tooltip::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    right: 24px;
+    width: 16px;
+    height: 16px;
+    background: white;
+    border-left: 1px solid #e5e7eb;
+    border-top: 1px solid #e5e7eb;
+    transform: rotate(45deg);
 } 

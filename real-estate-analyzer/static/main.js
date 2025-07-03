@@ -453,4 +453,27 @@ registerPreview.addEventListener('click', () => showSideImageViewer(registerPrev
 contractPreview.addEventListener('click', () => showSideImageViewer(contractPreview.src));
 sideViewerCloseBtn.addEventListener('click', hideSideImageViewer);
 
+// 사용방법 모달 기능
+const helpBtn = document.getElementById('help-btn');
+const helpTooltip = document.getElementById('help-tooltip');
+const closeHelpBtn = document.getElementById('close-help-btn');
+
+helpBtn.addEventListener('click', () => {
+    helpTooltip.classList.remove('hidden');
+    helpTooltip.classList.add('animate-fade-in');
+});
+
+closeHelpBtn.addEventListener('click', () => {
+    helpTooltip.classList.add('hidden');
+    helpTooltip.classList.remove('animate-fade-in');
+});
+
+// 모달 외부 클릭 시 닫기
+document.addEventListener('click', (e) => {
+    if (!helpTooltip.contains(e.target) && !helpBtn.contains(e.target)) {
+        helpTooltip.classList.add('hidden');
+        helpTooltip.classList.remove('animate-fade-in');
+    }
+});
+
 });
