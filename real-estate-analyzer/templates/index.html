@@ -198,7 +198,8 @@
                                 <div>
                                     <h4 class="font-semibold text-green-600 mb-2">🔍 분석 과정</h4>
                                     <ol class="space-y-1 ml-2">
-                                        <li>1. 서류 업로드</li>
+                                        <li>1. 서류 업로드. </li>
+                                        <li>단 pdf의 경우 미리보기를 지원하지 않습니다.</li>
                                         <li>2. "AI로 텍스트 추출 및 보정" 클릭</li>
                                         <li>3. 추출된 내용 검토 및 수정</li>
                                         <li>4. "종합 분석 실행" 클릭</li>
@@ -359,13 +360,6 @@
         <p class="text-xs text-gray-500 mt-1">이 서비스는 전세사기 예방을 위한 참고용으로만 사용해주세요.</p>
     </footer>
 
-    <!-- PDF 미리보기 모달 -->
-    <div id="pdf-modal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);z-index:1000;">
-      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:20px;max-width:90vw;max-height:90vh;">
-        <span id="close-pdf-modal" style="cursor:pointer;float:right;font-size:24px;">&times;</span>
-        <iframe id="pdf-frame" src="" width="600" height="800" style="max-width:80vw;max-height:80vh;"></iframe>
-      </div>
-    </div>
 
     <script src="/static/main.js"></script>
 </body>
