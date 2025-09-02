@@ -147,6 +147,10 @@ real-estate-analyzer/
     └── index.html          # 메인 페이지
 ```
 
+## 파인튜닝 관련 레포지토리
+
+https://github.com/pokqok/eOCRfinetune
+
 ## 배포 가이드
 
 - 본 프로젝트는 로컬 개발 환경뿐 아니라, 클라우드 서버(예: AWS EC2, GCP, Azure VM 등) 또는 Docker 환경에서 운영할 수 있습니다.
